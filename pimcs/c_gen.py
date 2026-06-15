@@ -4,6 +4,7 @@ import ctypes, os
 
 
 def generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms) -> str:
+    max_index = 0
     string_builder = ""
 
     # function definition and terms needed for z,± basis, and photon-energy term (always included)
@@ -19,19 +20,24 @@ def generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms) -> 
     for coeff, spins in bare_terms:
         index, _,  factor = ops_to_factor(spins)
         string_builder += f"\tdest[n + {index}][a] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor};\n"
+        max_index = max(max_index, index)
     
     for coeff, spins in linear_terms:
         index, _, factor = ops_to_factor(spins)
         string_builder += f"\tdest[n + {index}][a]     -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * state->alpha;\n"
         string_builder += f"\tdest[n + {index}][a - 1] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * sqrtf(a);\n"
+        max_index = max(max_index, index)
     
     for coeff, spins in linear_dagger_terms:
         index, _, factor = ops_to_factor(spins)
         string_builder += f"\tdest[n + {index}][a]     -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * conjf(state->alpha);\n"
         string_builder += f"\tdest[n + {index}][a + 1] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * sqrtf((a + 1) % CavityTruncation);\n"
+        max_index = max(max_index, index)
 
     string_builder += "}\n\n" # terminate function
-    return string_builder
+    padding = max_index + 1
+
+    return string_builder, padding
 
 
 
@@ -100,7 +106,7 @@ def generate_backend_code(H, expect) -> tuple[float, str]:
             assert len(spins) == 0, "Hamiltonian is not yet supported!"
             assert bosons[0] == PIOperatorKind.Ad and bosons[1] == PIOperatorKind.A, "Hamiltonian is not yet supported!"
 
-            assert isclose(boson_energy, 0), "Energy of bosonic mode must be real"
+            assert isclose(coeff.imag, 0), "Energy of bosonic mode must be real"
             boson_energy = coeff.real
     
         elif len(bosons) == 1:
@@ -113,16 +119,19 @@ def generate_backend_code(H, expect) -> tuple[float, str]:
             bare_terms.append((coeff, spins)) 
     
     
+    code, padding = generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms)
+
     string_builder = ""
-    string_builder += generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms)
+    string_builder += code
     string_builder += generate_equation_of_motion_term(linear_dagger_terms)
     string_builder += generate_expectation_values(expect)
 
-    return boson_energy, string_builder
+    return boson_energy, padding, string_builder
 
 
 
-def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int, ntraj: int, ncpu: int, boson_energy: float, jtol: float) -> str:
+def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int, ntraj: int,
+                    ncpu: int, boson_energy: float, jtol: float, padding: int) -> str:
     string_builder = ""
 
     # constant integral values used for array lengths
@@ -131,6 +140,7 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     string_builder += f"\tCavityTruncation = {boson_dim},\n"
     string_builder += f"\tExpectationOps   = {e_count},\n"
     string_builder += f"\tThreadCount      = {ncpu},\n"
+    string_builder += f"\tPaddingWidth     = {padding}\n"
     string_builder += "};\n\n"
 
     string_builder += "static const struct Config config = {\n";

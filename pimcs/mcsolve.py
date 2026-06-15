@@ -30,8 +30,8 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     if boson_dim is None:
         boson_dim = 1 # must have at least one, even just for free spins
 
-    boson_energy, code = c.generate_backend_code(system.hamiltonian, e_ops)
-    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, boson_energy, jtol)
+    boson_energy, padding, code = c.generate_backend_code(system.hamiltonian, e_ops)
+    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, boson_energy, jtol, padding)
 
     with open("pimcs/c_backend/tmp.h", 'w') as handle:
         handle.write(code)

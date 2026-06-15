@@ -89,9 +89,9 @@ struct TrajectoryState {
 
 
 struct WaveVectorAllocation {
-	complex float __padding1[2*CavityTruncation];
+	complex float __padding1[PaddingWidth*CavityTruncation];
 	WaveVector wave;
-	complex float __padding2[2*CavityTruncation];
+	complex float __padding2[PaddingWidth*CavityTruncation];
 };
 
 
