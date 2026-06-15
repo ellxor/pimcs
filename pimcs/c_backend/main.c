@@ -84,6 +84,9 @@ struct TrajectoryState {
 	complex float ann_expect;
 	complex float ttc_factor;
 
+	complex float abs_expect; // term from a sigma+ jump
+	complex float ems_expect; // term from a† sigma- jump
+
 	WaveVector *wave;
 };
 
@@ -446,6 +449,8 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 		float jump_table[JUMP_COUNT] = {0};
 		state.gjx_expect = 0;
 		state.ann_expect = 0;
+		state.abs_expect = 0;
+		state.ems_expect = 0;
 
 		for (int n = state.rowb; n <= state.rowa; ++n) {
 			for (int a = 0; a < CavityTruncation; ++a) {
@@ -478,7 +483,15 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 				jump_table[JUMP_PHOTON_LOSS] += norm * a;
 
 				expectation_term(wave, &state, n, a);
-				if (a) state.ann_expect += conjf(wave[n][a-1]) * wave[n][a] * sqrtf(a);
+
+				if (a) {
+					// inner product of annihilation operator
+					complex float annihilation_inner = conjf(wave[n][a-1]) * wave[n][a] * sqrtf(a);
+
+					state.ann_expect += annihilation_inner;
+					state.abs_expect += annihilation_inner * n; // spin down
+					state.ems_expect += annihilation_inner * (NumberOfEmitters - n); // spin up
+				}
 			}
 		}
 
@@ -508,8 +521,15 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 
 		state.time_step = config.JumpTolerance / max_factor;
 
+	float CavityEmissionRate;
+	float CavityAbsorptionRate;
+
 		if (USE_DISPLACEMENT_TRANSFORM) {
-			complex float alpha_dot = -(I*config.PhotonEnergy + config.PhotonLossRate/2) * state.alpha - I * state.gjx_expect;
+			complex float alpha_dot =
+				-(I*config.PhotonEnergy + config.PhotonLossRate/2) * state.alpha
+				-config.CavityAbsorptionRate/2 * state.abs_expect
+				+config.CavityEmissionRate/2 * state.ems_expect
+				-I * state.gjx_expect;
 
 			if (expectation && time + state.time_step >= next_write) {
 				*(expectation++) += conjf( state.ann_expect + state.alpha + (next_write - time) * alpha_dot ) * state.ttc_factor;
