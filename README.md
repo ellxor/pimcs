@@ -17,7 +17,7 @@ Check out the [example notebook](example.ipynb) as a quick reference.
 - [x] Add unified interface for single `import pimcs`
 - [ ] Add more graceful way for c backend to be killed from Python frontend - currently requires killing by PID
 - [ ] Add support for initial states not in maximal J sector
-- [ ] Add support for non-displaced trajectories to Python frontend
+- [x] Add support for non-displaced trajectories to Python frontend
 - [ ] Add support for two-time correlations to Python frontend
 - [ ] Support fully quadratic Hamiltonians in the bosonic mode: (a)^2 and (a†)^2 terms
 - [ ] Add Cython backend and code generation

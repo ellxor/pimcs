@@ -15,7 +15,6 @@ enum Options {
 	OUTPUT_COUNT = 300,
 	MOLMER_REPEATS = 0,
 	SAVE_TRAJECTORY = true,
-	USE_DISPLACEMENT_TRANSFORM = true,
 
 };
 
@@ -148,7 +147,7 @@ void linear_hamiltonian_integration_step(WaveVector dest, WaveVector source, str
 				config.CavityAbsorptionRate * (jpm + 1)*(jmm) * a
 			);
 
-			if (USE_DISPLACEMENT_TRANSFORM) { // extra QSD terms
+			if (UseDisplacement) { // extra QSD terms
 				dest[n][a] -= source[n][a] * state->time_step/2 * config.PhotonLossRate * cnormf(state->ann_expect);
 				dest[n][a-1] -= source[n][a] * state->time_step * config.PhotonLossRate * conjf(state->ann_expect) * sqrtf(a);
 			}
@@ -189,7 +188,7 @@ void evolve_under_H_eff(WaveVector wave, struct TrajectoryState *state) {
 	}
 
 	// Generate Wiener fluctuation for quantum state diffusion
-	if (USE_DISPLACEMENT_TRANSFORM) {
+	if (UseDisplacement) {
 		complex float xi = random_complex_gaussian(state->time_step);
 
 		for (int n = state->rowb; n <= state->rowa; ++n) {
@@ -524,7 +523,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 	float CavityEmissionRate;
 	float CavityAbsorptionRate;
 
-		if (USE_DISPLACEMENT_TRANSFORM) {
+		if (UseDisplacement) {
 			complex float alpha_dot =
 				-(I*config.PhotonEnergy + config.PhotonLossRate/2) * state.alpha
 				-config.CavityAbsorptionRate/2 * state.abs_expect
@@ -592,7 +591,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 				break;
 
 			case JUMP_PHOTON_LOSS:
-				if (USE_DISPLACEMENT_TRANSFORM); // fallthough
+				if (UseDisplacement); // fallthough
 				else { jump_photon_loss(wave, &state); break; }
 
 			case EFFECTIVE_HAMILTONIAN:  evolve_under_H_eff(wave, &state);     break;
@@ -726,6 +725,7 @@ void run_trajectories(complex float *inital_state_data) {
 	total_millis = 0;
 
 	pthread_t threads[ThreadCount];
+	fprintf(stderr, "Running backend with UseDisplacement = %s\n", UseDisplacement ? "Yes" : "No");
 
 	for (int i = 0; i < ThreadCount; ++i) pthread_create(&threads[i], nullptr, thread_worker, nullptr); //expectation[i]);
 	for (int i = 0; i < ThreadCount; ++i) pthread_join(threads[i], nullptr);

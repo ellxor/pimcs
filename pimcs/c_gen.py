@@ -1,6 +1,6 @@
 from pimcs.operators import *
 from pimcs.dicke import Dicke
-import ctypes, os
+import ctypes, random, os
 
 
 def generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms) -> str:
@@ -107,7 +107,7 @@ def generate_backend_code(H, expect) -> tuple[float, str]:
             assert bosons[0] == PIOperatorKind.Ad and bosons[1] == PIOperatorKind.A, "Hamiltonian is not yet supported!"
 
             assert isclose(coeff.imag, 0), "Energy of bosonic mode must be real"
-            boson_energy = coeff.real
+            boson_energy = float(coeff.real)
     
         elif len(bosons) == 1:
             if bosons[0] == PIOperatorKind.A:
@@ -131,7 +131,7 @@ def generate_backend_code(H, expect) -> tuple[float, str]:
 
 
 def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int, ntraj: int,
-                    ncpu: int, boson_energy: float, jtol: float, padding: int) -> str:
+                    ncpu: int, boson_energy: float, jtol: float, padding: int, disable_displ: bool) -> str:
     string_builder = ""
 
     # constant integral values used for array lengths
@@ -140,7 +140,8 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     string_builder += f"\tCavityTruncation = {boson_dim},\n"
     string_builder += f"\tExpectationOps   = {e_count},\n"
     string_builder += f"\tThreadCount      = {ncpu},\n"
-    string_builder += f"\tPaddingWidth     = {padding}\n"
+    string_builder += f"\tPaddingWidth     = {padding},\n"
+    string_builder += f"\tUseDisplacement  = {"false" if disable_displ else "true"},\n"
     string_builder += "};\n\n"
 
     string_builder += "static const struct Config config = {\n";
@@ -150,16 +151,16 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     #string_builder += f"\t.ExpectationOps   = {e_count},\n"
     string_builder += f"\t.TimeSpan         = {tspan[-1]}f,\n"
 
-    string_builder += f"\t.PhotonEnergy            = {boson_energy}f,\n"
-    string_builder += f"\t.PhotonLossRate          = {system.cavity_loss}f,\n"
-    string_builder += f"\t.DephasingRate           = {system.dephasing}f,\n"
-    string_builder += f"\t.EmissionRate            = {system.emission}f,\n"
-    string_builder += f"\t.PumpingRate             = {system.pumping}f,\n"
-    string_builder += f"\t.CollectiveDephasingRate = {system.collective_dephasing}f,\n"
-    string_builder += f"\t.CollectiveEmissionRate  = {system.collective_emission}f,\n"
-    string_builder += f"\t.CollectivePumpingRate   = {system.collective_pumping}f,\n"
-    string_builder += f"\t.CavityEmissionRate      = {system.cavity_emission}f,\n"
-    string_builder += f"\t.CavityAbsorptionRate    = {system.cavity_absorption}f,\n"
+    string_builder += f"\t.PhotonEnergy            = (float){boson_energy},\n"
+    string_builder += f"\t.PhotonLossRate          = (float){system.cavity_loss},\n"
+    string_builder += f"\t.DephasingRate           = (float){system.dephasing},\n"
+    string_builder += f"\t.EmissionRate            = (float){system.emission},\n"
+    string_builder += f"\t.PumpingRate             = (float){system.pumping},\n"
+    string_builder += f"\t.CollectiveDephasingRate = (float){system.collective_dephasing},\n"
+    string_builder += f"\t.CollectiveEmissionRate  = (float){system.collective_emission},\n"
+    string_builder += f"\t.CollectivePumpingRate   = (float){system.collective_pumping},\n"
+    string_builder += f"\t.CavityEmissionRate      = (float){system.cavity_emission},\n"
+    string_builder += f"\t.CavityAbsorptionRate    = (float){system.cavity_absorption},\n"
 
     # string_builder += f"\t.ThreadCount     = {ncpu},\n"
     string_builder += f"\t.TrajectoryCount = {ntraj},\n"
@@ -174,5 +175,10 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
 
 def build_executable():
     assert os.system("cc -c -std=c11 -O3 -march=native -ffast-math pimcs/c_backend/main.c") == 0
-    os.system("cc -shared -o main.so main.o")
-    return ctypes.CDLL("main.so")
+
+    output_id = random.randint(0, 2**64 - 1)
+    output = f"main-{hex(output_id)}.so"
+
+    assert os.system(f"cc -shared -o {output} main.o") == 0
+    return ctypes.CDLL(output)
+

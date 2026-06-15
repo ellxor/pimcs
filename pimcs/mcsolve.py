@@ -10,7 +10,8 @@ class MCSolveResult:
         self.expect = expect
 
 
-def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0, jtol: float = 0.01) -> MCSolveResult:
+def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0,
+            jtol: float = 0.01, disable_displ: bool = False) -> MCSolveResult:
     assert psi0.j == system.N/2, "Only states in the maximal J-sector are currently supported"
 
     if not math.isclose(psi0.norm(), 1):
@@ -31,7 +32,7 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
         boson_dim = 1 # must have at least one, even just for free spins
 
     boson_energy, padding, code = c.generate_backend_code(system.hamiltonian, e_ops)
-    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, boson_energy, jtol, padding)
+    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, boson_energy, jtol, padding, disable_displ)
 
     with open("pimcs/c_backend/tmp.h", 'w') as handle:
         handle.write(code)
@@ -56,3 +57,4 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
             expect[i] += np.interp(tlist, t, complex_data)
 
     return MCSolveResult(expect / ntraj)
+
