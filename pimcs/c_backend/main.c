@@ -656,7 +656,9 @@ void two_time_correlation(complex float *expectation) {
 atomic(int) thread_id;
 atomic(int) thread_pool;
 atomic(int) threads_complete;
+atomic(int) total_millis;
 
+#define CLEAR_LINE "\r\x1b[2K"
 
 void *thread_worker(void *output) {
 	auto expectation = (complex float *)output;
@@ -665,7 +667,6 @@ void *thread_worker(void *output) {
 	int next;
 
 	set_random_seed(id);
-	printf("Initialized thread %d\n", id + 1);
 
 	while ((next = atomic_fetch_add(&thread_pool, -1)) > 0) {
 		double begin = get_time_from_os();
@@ -674,8 +675,13 @@ void *thread_worker(void *output) {
 		simulate_trajectory(config.TimeSpan, nullptr, nullptr);
 		double end = get_time_from_os();
 
+		int millis = (int)(1000.0f * (end - begin));
+		float total_seconds = (atomic_fetch_add(&total_millis, millis) + millis) / 1000.0f;
+
 		int complete = atomic_fetch_add(&threads_complete, 1) + 1;
-		fprintf(stderr, "Trajectory [%d/%d] completed in %.3f seconds.\n", complete, config.TrajectoryCount, end - begin);
+		float average_seconds = total_seconds / complete;
+
+		fprintf(stderr, CLEAR_LINE "Trajectory [%d/%d] completed, average time: %.3f seconds.", complete, config.TrajectoryCount, average_seconds);
 	}
 
 	return expectation;
@@ -688,11 +694,13 @@ void run_trajectories(complex float *inital_state_data) {
 	thread_pool = config.TrajectoryCount;
 	threads_complete = 0;
 	initial_state = inital_state_data;
+	total_millis = 0;
 
 	pthread_t threads[ThreadCount];
 
 	for (int i = 0; i < ThreadCount; ++i) pthread_create(&threads[i], nullptr, thread_worker, nullptr); //expectation[i]);
 	for (int i = 0; i < ThreadCount; ++i) pthread_join(threads[i], nullptr);
+	fprintf(stderr, "\n");
 
 /*
 	if (!MOLMER_REPEATS) return 0;
