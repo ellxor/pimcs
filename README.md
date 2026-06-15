@@ -14,7 +14,7 @@ Check out the [example notebook](example.ipynb) as a quick reference.
 
 **TODO:**
 - [x] Relax C backend requirements to C11 (atomics) for better compatibility
-- [ ] Add unified interface for single `import pimcs`
+- [x] Add unified interface for single `import pimcs`
 - [ ] Add more graceful way for c backend to be killed from Python frontend - currently requires killing by PID
 - [ ] Add support for initial states not in maximal J sector
 - [ ] Add support for non-displaced trajectories to Python frontend
