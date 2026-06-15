@@ -28,7 +28,7 @@ inline uint64_t random_u64() {
 
 // Generate a uniform random variable from (0,1)
 inline float random_uniform() {
-	return (float)random_u64() / UINT64_MAX;
+	return (float)random_u64() / (float)UINT64_MAX;
 }
 
 // Generate a normal random complex variable with mean of zero.
