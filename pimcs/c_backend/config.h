@@ -1,7 +1,7 @@
 struct Config {
-	int NumberOfEmitters;
-	int CavityTruncation;
-	int ExpectationOps;
+	//int NumberOfEmitters;
+	//int CavityTruncation;
+	//int ExpectationOps;
 	float TimeSpan;
 
 	float PhotonEnergy;
@@ -15,7 +15,7 @@ struct Config {
 	float CavityEmissionRate;
 	float CavityAbsorptionRate;
 
-	int ThreadCount;
+	//int ThreadCount;
 	int TrajectoryCount;
 	int RungeKuttaPoly;
 	float JumpTolerance;
