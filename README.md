@@ -14,6 +14,7 @@ Check out the [example notebook](example.ipynb) as a quick reference.
 
 **TODO:**
 - [ ] (Most important) Relax C backend requirements to C99 for better compatibility
+- [ ] Add unified interface for single `import pimcs`
 - [ ] Add support for non-displaced trajectories to Python frontend
 - [ ] Add support for two-time correlations to Python frontend
 - [ ] Support fully quadratic Hamiltonians in the bosonic mode: (a)^2 and (a†)^2 terms
