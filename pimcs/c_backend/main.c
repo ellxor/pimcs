@@ -128,12 +128,21 @@ void linear_hamiltonian_integration_step(WaveVector dest, WaveVector source, str
 
 	for (int n = state->rowb; n <= state->rowa; ++n) { // number of spin down
 		for (int a = 0; a < CavityTruncation; ++a) {
+			int jpm = state->row1 - n; // J+M
+			int jmm = n - state->row2; // J-M
+			float m2 = (NumberOfEmitters - 2*n);
+
 			// Jump dagger jump terms from effective Hamiltonian
 			dest[n][a] -= source[n][a] * state->time_step/2 * (
 				config.PhotonLossRate * a +
 				config.DephasingRate * NumberOfEmitters +
 				config.EmissionRate * (NumberOfEmitters - n) +
-				config.PumpingRate * n
+				config.PumpingRate * n +
+				config.CollectiveDephasingRate * m2*m2 +
+				config.CollectiveEmissionRate * (jmm + 1)*(jpm) +
+				config.CollectivePumpingRate * (jpm + 1)*(jmm) +
+				config.CavityEmissionRate * (jmm + 1)*(jpm) * (a + 1) +
+				config.CavityAbsorptionRate * (jpm + 1)*(jmm) * a
 			);
 
 			if (USE_DISPLACEMENT_TRANSFORM) { // extra QSD terms
