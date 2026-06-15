@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from typing import Union
 from collections import defaultdict
@@ -87,7 +88,7 @@ class PIExpression:
 
 @dataclass
 class Leaf(PIExpression):
-    value: complex | Op
+    value: complex | PIOperatorKind
     dim: int | None
 
 @dataclass

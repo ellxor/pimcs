@@ -26,12 +26,14 @@ def generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms) -> 
         index, _, factor = ops_to_factor(spins)
         string_builder += f"\tdest[n + {index}][a]     -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * state->alpha;\n"
         string_builder += f"\tdest[n + {index}][a - 1] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * sqrtf(a);\n"
+        string_builder += f"\tdest[n][a - 1] += coeff * conjf(state->gjx_expect) * sqrtf(a);\n"
         max_index = max(max_index, index)
-    
+
     for coeff, spins in linear_dagger_terms:
         index, _, factor = ops_to_factor(spins)
         string_builder += f"\tdest[n + {index}][a]     -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * conjf(state->alpha);\n"
         string_builder += f"\tdest[n + {index}][a + 1] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * sqrtf((a + 1) % CavityTruncation);\n"
+        string_builder += f"\tdest[n][a + 1] += coeff * state->gjx_expect * sqrtf(a + 1);\n"
         max_index = max(max_index, index)
 
     string_builder += "}\n\n" # terminate function
@@ -174,7 +176,7 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
 
 
 def build_executable():
-    assert os.system("cc -c -std=c11 -O3 -march=native -ffast-math pimcs/c_backend/main.c") == 0
+    assert os.system("cc -c -std=gnu11 -D_GNU_SOURCE -O3 -march=native -ffast-math pimcs/c_backend/main.c") == 0
 
     output_id = random.randint(0, 2**64 - 1)
     output = f"main-{hex(output_id)}.so"

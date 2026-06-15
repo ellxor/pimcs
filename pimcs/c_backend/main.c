@@ -397,7 +397,6 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 		.rowa = NumberOfEmitters,
 		.rowb = 0,
 
-		.time_step = 0.05f,
 		.alpha = 0,
 		.wave = &wave_alloc.wave,
 	};
@@ -481,7 +480,9 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 
 				jump_table[JUMP_PHOTON_LOSS] += norm * a;
 
-				expectation_term(wave, &state, n, a);
+				if (UseDisplacement) {
+					expectation_term(wave, &state, n, a);
+				}
 
 				if (a) {
 					// inner product of annihilation operator
@@ -520,9 +521,6 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 
 		state.time_step = config.JumpTolerance / max_factor;
 
-	float CavityEmissionRate;
-	float CavityAbsorptionRate;
-
 		if (UseDisplacement) {
 			complex float alpha_dot =
 				-(I*config.PhotonEnergy + config.PhotonLossRate/2) * state.alpha
@@ -547,7 +545,6 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 		int row1_copy = state.row1;
 
 		switch (choice) {
-
 			case JUMP_COLLECTIVE_SPIN_DEPHASING: jump_spin_dephasing_same_j(wave, &state); break;
 			case JUMP_COLLECTIVE_SPIN_LOSS: jump_spin_loss_same_j(wave, &state); break;
 			case JUMP_COLLECTIVE_SPIN_GAIN: jump_spin_gain_same_j(wave, &state); break;
