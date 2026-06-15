@@ -6,15 +6,16 @@ along with an associated bosonic mode, e.g. Dicke model.
 > [!WARNING]
 > The library is still in beta-testing phase and many parts are not fully implemented,
 > and it currently creates debug files. It requires a UNIX based OS (macOS or Linux)
-> and C23 compliant C compiler (currently - will soon be relaxed)
+> and C11 compliant C compiler (gcc 5+ or clang 4+)
 
 The interface is designed to be a mesh of QuTiP `piqs` and `mcsolve` submodules.
 
 Check out the [example notebook](example.ipynb) as a quick reference.
 
 **TODO:**
-- [ ] (Most important) Relax C backend requirements to C99 for better compatibility
+- [x] Relax C backend requirements to C11 (atomics) for better compatibility
 - [ ] Add unified interface for single `import pimcs`
+- [ ] Add more graceful way for c backend to be killed from Python frontend - currently requires killing by PID
 - [ ] Add support for initial states not in maximal J sector
 - [ ] Add support for non-displaced trajectories to Python frontend
 - [ ] Add support for two-time correlations to Python frontend
