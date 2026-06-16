@@ -1,6 +1,10 @@
 #define _GNU_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wnon-literal-null-conversion"
+#endif
+
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
