@@ -82,11 +82,11 @@ def generate_expectation_values(expect, displace: bool) -> str:
 
         for coeff, spin, boson in collected:
             spin_index, boson_index, factor = ops_to_factor(spin + boson)
-            cond = [
+            cond = " && ".join([
                 f"(n + {spin_index}) " + (">= state->rowb" if spin_index < 0 else "<= state->rowa"),
                 f"(a + {boson_index}) " + (">= 0" if boson_index < 0 else "< CavityTruncation"),
-            ]
-            string_builder += f"\t\t\tif ({" && ".join(cond)}) expect[{i}] += conjf(wave[n + {spin_index}][a + {boson_index}]) * wave[n][a] * {factor};\n"
+            ])
+            string_builder += f"\t\t\tif ({cond}) expect[{i}] += conjf(wave[n + {spin_index}][a + {boson_index}]) * wave[n][a] * {factor};\n"
 
     string_builder += "\t\t}\n\t}\n}\n\n"
     return string_builder
@@ -134,6 +134,7 @@ def generate_backend_code(H, expect, displace: bool) -> tuple[float, str]:
 
 def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int, ntraj: int,
                     ncpu: int, boson_energy: float, jtol: float, padding: int, disable_displ: bool) -> str:
+    displacement_flag = "false" if disable_displ else "true"
     string_builder = ""
 
     # constant integral values used for array lengths
@@ -143,7 +144,7 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     string_builder += f"\tExpectationOps   = {e_count},\n"
     string_builder += f"\tThreadCount      = {ncpu},\n"
     string_builder += f"\tPaddingWidth     = {padding},\n"
-    string_builder += f"\tUseDisplacement  = {"false" if disable_displ else "true"},\n"
+    string_builder += f"\tUseDisplacement  = {displacement_flag},\n"
     string_builder += "};\n\n"
 
     string_builder += "static const struct Config config = {\n";
