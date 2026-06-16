@@ -176,7 +176,7 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
 
 
 def build_executable():
-    assert os.system("cc -c -std=gnu11 -fPIC -O3 -march=native -ffast-math pimcs/c_backend/main.c") == 0
+    assert os.system("cc -c -std=gnu11 -fPIC -O3 -march=native -ffast-math -lm -pthread pimcs/c_backend/main.c") == 0
 
     output_id = random.randint(0, 2**64 - 1)
     output = f"./main-{hex(output_id)}.so"
