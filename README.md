@@ -13,6 +13,7 @@ The interface is designed to be a mesh of QuTiP `piqs` and `mcsolve` submodules.
 Check out the [example notebook](example.ipynb) as a quick reference.
 
 **TODO:**
+- [ ] _High priority_: fix displaced trajectories
 - [x] Relax C backend requirements to C11 (atomics) for better compatibility
 - [x] Add unified interface for single `import pimcs`
 - [ ] Add more graceful way for c backend to be killed from Python frontend - currently requires killing by PID
