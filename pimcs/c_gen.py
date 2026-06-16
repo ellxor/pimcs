@@ -26,16 +26,16 @@ def generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms) -> 
         index, _, factor = ops_to_factor(spins)
         string_builder += f"\tdest[n + {index}][a]     -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * state->alpha;\n"
         string_builder += f"\tdest[n + {index}][a - 1] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * sqrtf(a);\n"
-        string_builder += f"\tdest[n][a - 1] += coeff * conjf(state->gjx_expect) * sqrtf(a);\n"
         max_index = max(max_index, index)
 
     for coeff, spins in linear_dagger_terms:
         index, _, factor = ops_to_factor(spins)
         string_builder += f"\tdest[n + {index}][a]     -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * conjf(state->alpha);\n"
         string_builder += f"\tdest[n + {index}][a + 1] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * sqrtf((a + 1) % CavityTruncation);\n"
-        string_builder += f"\tdest[n][a + 1] += coeff * state->gjx_expect * sqrtf(a + 1);\n"
         max_index = max(max_index, index)
 
+    string_builder += f"\tdest[n][a - 1] += coeff * conjf(state->gjx_expect) * sqrtf(a);\n"
+    string_builder += f"\tdest[n][a + 1] += coeff * state->gjx_expect * sqrtf(a + 1);\n"
     string_builder += "}\n\n" # terminate function
     padding = max_index + 1
 
@@ -64,7 +64,7 @@ def generate_equation_of_motion_term(linear_dagger_terms) -> str:
 
 
 
-def generate_expectation_values(expect) -> str:
+def generate_expectation_values(expect, displace: bool) -> str:
     string_builder = ""
 
     # function definition, loop over states and terms needed for z,± basis
@@ -93,7 +93,7 @@ def generate_expectation_values(expect) -> str:
 
 
 
-def generate_backend_code(H, expect) -> tuple[float, str]:
+def generate_backend_code(H, expect, displace: bool) -> tuple[float, str]:
     collected = to_sum_of_products(H)
 
     bare_terms = []
@@ -126,7 +126,7 @@ def generate_backend_code(H, expect) -> tuple[float, str]:
     string_builder = ""
     string_builder += code
     string_builder += generate_equation_of_motion_term(linear_dagger_terms)
-    string_builder += generate_expectation_values(expect)
+    string_builder += generate_expectation_values(expect, displace)
 
     return boson_energy, padding, string_builder
 
