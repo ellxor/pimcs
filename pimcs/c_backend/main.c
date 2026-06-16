@@ -23,7 +23,6 @@
 #define auto ERROR
 
 enum Options {
-	OUTPUT_COUNT = 300,
 	MOLMER_REPEATS = 0,
 	SAVE_TRAJECTORY = true,
 	nullptr = 0,
@@ -429,7 +428,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 
 	float time = 0;
 
-	float tick_size = total_time / OUTPUT_COUNT;
+	float tick_size = total_time / OutputCount;
 	float next_write = 0; 
 
  	FILE *log = nullptr;
@@ -726,7 +725,7 @@ void *thread_worker(void *output) {
 
 
 void run_trajectories(complex float *inital_state_data) {
-	// static complex float expectation[THREAD_COUNT][OUTPUT_COUNT + 1];
+	// static complex float expectation[THREAD_COUNT][OutputCount + 1];
 	thread_id = 0;
 	thread_pool = config.TrajectoryCount;
 	threads_complete = 0;
@@ -748,7 +747,7 @@ void run_trajectories(complex float *inital_state_data) {
 
 	auto log = fopen(filepath, "wb");
 
-	for (int i = 0; i <= OUTPUT_COUNT; ++i) {
+	for (int i = 0; i <= OutputCount; ++i) {
 		complex float average = 0;
 		for (int t = 0; t < THREAD_COUNT; ++t) average += expectation[t][i];
 		average /= (4 * MOLMER_REPEATS * TRAJECTORY_COUNT);

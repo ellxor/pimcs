@@ -32,7 +32,7 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
         boson_dim = 1 # must have at least one, even just for free spins
 
     boson_energy, padding, code = c.generate_backend_code(system.hamiltonian, e_ops, displace = False)
-    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, boson_energy, jtol, padding, True)
+    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, boson_energy, jtol, padding, True, len(tlist))
 
     with open("pimcs/c_backend/tmp.h", 'w') as handle:
         handle.write(code)
@@ -54,6 +54,7 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
 
         for i in range(len(e_ops)):
             complex_data = data[2*i] + data[2*i+1] * 1j
+            print(len(complex_data))
             expect[i] += np.interp(tlist, t, complex_data)
 
     return MCSolveResult(expect / ntraj)

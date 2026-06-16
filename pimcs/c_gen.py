@@ -133,7 +133,7 @@ def generate_backend_code(H, expect, displace: bool) -> tuple[float, str]:
 
 
 def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int, ntraj: int,
-                    ncpu: int, boson_energy: float, jtol: float, padding: int, disable_displ: bool) -> str:
+                    ncpu: int, boson_energy: float, jtol: float, padding: int, disable_displ: bool, output_count: int) -> str:
     displacement_flag = "false" if disable_displ else "true"
     string_builder = ""
 
@@ -145,6 +145,7 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     string_builder += f"\tThreadCount      = {ncpu},\n"
     string_builder += f"\tPaddingWidth     = {padding},\n"
     string_builder += f"\tUseDisplacement  = {displacement_flag},\n"
+    string_builder += f"\tOutputCount      = {output_count},\n"
     string_builder += "};\n\n"
 
     string_builder += "static const struct Config config = {\n";
