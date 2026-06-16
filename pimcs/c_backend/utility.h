@@ -3,15 +3,10 @@
 #include <stdatomic.h>
 #include <time.h>
 
-#define inline [[gnu::always_inline]] static inline
-#define atomic(T) _Atomic(T)
-#define swap(a,b) do { auto _tmp = a; a = b; b = _tmp; } while(0)
-#define fill(begin, end, value) do { for (auto _p = begin; _p < end; ++_p) *_p = value; } while (0)
+int min(int a, int b) { return (a < b) ? a : b; }
+int max(int a, int b) { return (a > b) ? a : b; }
 
-inline int min(int a, int b) { return (a < b) ? a : b; }
-inline int max(int a, int b) { return (a > b) ? a : b; }
-
-inline float cnormf(complex float c) {
+float cnormf(complex float c) {
 	float r = crealf(c);
 	float i = cimagf(c);
 	return r*r + i*i;

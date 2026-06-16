@@ -5,20 +5,24 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <pthread.h>
 
-#include "compat.h" // tmporary fix
+#define atomic(T) _Atomic(T)
+#define thread_local _Thread_local
 
 #include "config.h"
 #include "random.h"
 #include "utility.h"
 
+#define auto ERROR
+
 enum Options {
 	OUTPUT_COUNT = 300,
 	MOLMER_REPEATS = 0,
 	SAVE_TRAJECTORY = true,
-
+	nullptr = 0,
 };
 
 
@@ -168,8 +172,8 @@ void evolve_under_H_eff(WaveVector wave, struct TrajectoryState *state) {
 	// is identical to a Taylor series expansion, so this is performed directly for efficiency.
 
 	static thread_local struct WaveVectorAllocation _a, _b; // Create two temporary vectors using double-buffering technique.
-	auto a = wave; // Controlled by pointers which are cheap to swap.
-	auto b = _b.wave;
+	complex float (*a)[CavityTruncation] = wave; // Controlled by pointers which are cheap to swap.
+	complex float (*b)[CavityTruncation] = _b.wave;
 
 	int factorial = 1;
 
@@ -187,7 +191,11 @@ void evolve_under_H_eff(WaveVector wave, struct TrajectoryState *state) {
 		}
 
 		if (i == 1) a = _a.wave; // a is temporarily set to wave for first iteration to avoid a copy
-		swap(a, b); // perform double-buffering
+
+		// perform double-buffering: swap pointers
+		complex float (*tmp)[CavityTruncation] = a;
+		a = b;
+		b = tmp;
 	}
 
 	// Generate Wiener fluctuation for quantum state diffusion
@@ -266,7 +274,6 @@ void jump_spin_loss_lower_j(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowa; n >= state->rowb; --n) { // iterate backwards due to overlap
 		for (int a = 0; a < CavityTruncation; ++a) {
 			int jpm = state->row1 - n; // J + M
-			int jmm = n - state->row2; // J - M
 
 			wave[n + 1][a] = sqrtf((jpm - 1)*(jpm)) * wave[n][a];
 		}
@@ -282,7 +289,6 @@ void jump_spin_loss_lower_j(WaveVector wave, struct TrajectoryState *state) {
 void jump_spin_loss_upper_j(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowa; n >= state->rowb; --n) { // iterate backwards due to overlap
 		for (int a = 0; a < CavityTruncation; ++a) {
-			int jpm = state->row1 - n; // J + M
 			int jmm = n - state->row2; // J - M
 
 			wave[n + 1][a] = sqrtf((jmm + 1)*(jmm + 2)) * wave[n][a];
@@ -314,7 +320,6 @@ void jump_spin_gain_same_j(WaveVector wave, struct TrajectoryState *state) {
 void jump_spin_gain_lower_j(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowb + 2; n <= state->rowa; ++n) {
 		for (int a = 0; a < CavityTruncation; ++a) {
-			int jpm = state->row1 - n; // J + M
 			int jmm = n - state->row2; // J - M
 
 			wave[n - 1][a] = sqrtf((jmm - 1)*(jmm)) * wave[n][a];
@@ -332,7 +337,6 @@ void jump_spin_gain_upper_j(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowb; n <= state->rowa; ++n) {
 		for (int a = 0; a < CavityTruncation; ++a) {
 			int jpm = state->row1 - n; // J + M
-			int jmm = n - state->row2; // J - M
 
 			wave[n - 1][a] = sqrtf((jpm + 1)*(jpm + 2)) * wave[n][a];
 		}
@@ -413,7 +417,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 		}
 	}
 
-	auto wave = *state.wave;
+	complex float (*wave)[CavityTruncation] = *state.wave;
 
 	float e_factor = precompute_e_factor(state.row1, state.row2);
 	float f_factor = precompute_f_factor(state.row1, state.row2);
@@ -591,10 +595,10 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 				break;
 
 			case JUMP_PHOTON_LOSS:
-				if (UseDisplacement); // fallthough
-				else { jump_photon_loss(wave, &state); break; }
+				if (!UseDisplacement) { jump_photon_loss(wave, &state); break; }
+				// fallthrough
 
-			case EFFECTIVE_HAMILTONIAN:  evolve_under_H_eff(wave, &state);     break;
+			case EFFECTIVE_HAMILTONIAN: evolve_under_H_eff(wave, &state); break;
 		}
 
 		if (state.rowa > state.row1) state.rowa = state.row1;
@@ -646,10 +650,10 @@ void two_time_correlation(complex float *expectation) {
 	static thread_local struct WaveVectorAllocation second_wave;
 
 	struct TrajectoryState trajectory = simulate_trajectory(STEADY_STATE_TIME, nullptr, nullptr);
-	auto steady_state_wave = *trajectory.wave;
+	complex float (*steady_state_wave)[CavityTruncation] = *trajectory.wave;
 
 	trajectory.wave = &second_wave.wave;
-	auto wave = *trajectory.wave;
+	complex float (*wave)[CavityTruncation] = *trajectory.wave;
 
 	// split wave function into 4 states, and then evolve trajectories from there...
 	//  in this case hat(a) = hat(b) + alpha
@@ -689,7 +693,8 @@ atomic(int) total_millis;
 #define CLEAR_LINE "\r\x1b[2K"
 
 void *thread_worker(void *output) {
-	auto expectation = (complex float *)output;
+	// complex float *expectation = (complex float *)output;
+	(void) output;
 
 	int id = atomic_fetch_add(&thread_id, 1);
 	int next;
@@ -712,7 +717,7 @@ void *thread_worker(void *output) {
 		fprintf(stderr, CLEAR_LINE "Trajectory [%d/%d] completed, average time: %.3f seconds.", complete, config.TrajectoryCount, average_seconds);
 	}
 
-	return expectation;
+	return nullptr;
 }
 
 

@@ -13,13 +13,13 @@ static const float TwoPi = 2.0f * (float)M_PI;
 
 static thread_local uint64_t _random_seed = HighBit;
 
-inline void set_random_seed(uint64_t seed) {
+void set_random_seed(uint64_t seed) {
 	_random_seed = seed | HighBit;  // seed must be non zero!
 }
 
 // Generate a random 64 bit integer using the xorshift* algorithm (G. Marsaglia)
 // Periodicity of (2^64 - 1), never outputs zero.
-inline uint64_t random_u64() {
+uint64_t random_u64() {
 	_random_seed ^= _random_seed >> 12;
 	_random_seed ^= _random_seed << 25;
 	_random_seed ^= _random_seed >> 27;
@@ -27,12 +27,12 @@ inline uint64_t random_u64() {
 }
 
 // Generate a uniform random variable from (0,1)
-inline float random_uniform() {
+float random_uniform() {
 	return (float)random_u64() / (float)UINT64_MAX;
 }
 
 // Generate a normal random complex variable with mean of zero.
-inline complex float random_complex_gaussian(float variance) {
+complex float random_complex_gaussian(float variance) {
 	float radius = sqrtf(-2.0f * logf(random_uniform()));
 	float angle = TwoPi * random_uniform();
 

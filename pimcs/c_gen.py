@@ -9,7 +9,7 @@ def generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms) -> 
 
     # function definition and terms needed for z,± basis, and photon-energy term (always included)
     string_builder += (
-        "inline void hamiltonian_term(WaveVector dest, WaveVector source, struct TrajectoryState *state, int n, int a) {\n"
+        "void hamiltonian_term(WaveVector dest, WaveVector source, struct TrajectoryState *state, int n, int a) {\n"
         "\tcomplex float coeff = I * state->time_step * source[n][a];\n"
         "\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
         "\tint jpm = state->row1 - n;\n"
@@ -48,7 +48,7 @@ def generate_equation_of_motion_term(linear_dagger_terms) -> str:
 
     # function definition and terms needed for z,± basis
     string_builder += (
-        "inline void expectation_term(WaveVector wave, struct TrajectoryState *state, int n, int a) {\n"
+        "void expectation_term(WaveVector wave, struct TrajectoryState *state, int n, int a) {\n"
         "\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
         "\tint jpm = state->row1 - n;\n"
         "\tint jmm = n - state->row2;\n\n"
@@ -69,7 +69,7 @@ def generate_expectation_values(expect, displace: bool) -> str:
 
     # function definition, loop over states and terms needed for z,± basis
     string_builder += (
-        "inline void compute_expectation_values(WaveVector wave, struct TrajectoryState *state, complex float *expect) {\n"
+        "void compute_expectation_values(WaveVector wave, struct TrajectoryState *state, complex float *expect) {\n"
         "\tfor (int n = state->rowb; n <= state->rowa; ++n) {\n"
         "\t\tfor (int a = 0; a < CavityTruncation; ++a) {\n"
         "\t\t\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
@@ -177,7 +177,7 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
 
 
 def build_executable():
-    assert os.system("cc -c -std=gnu11 -fPIC -O3 -march=native -ffast-math -lm -pthread pimcs/c_backend/main.c") == 0
+    assert os.system("cc -c -std=c11 -pedantic -fPIC -O3 -march=native -ffast-math -lm -pthread pimcs/c_backend/main.c") == 0
 
     output_id = random.randint(0, 2**64 - 1)
     output = f"./main-{hex(output_id)}.so"
