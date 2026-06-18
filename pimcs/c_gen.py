@@ -140,7 +140,7 @@ def generate_backend_code(H, expect, displace: bool) -> tuple[float, str]:
 
 
 def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int, ntraj: int,
-                    ncpu: int, boson_energy: float, jtol: float, padding: int, disable_displ: bool, output_count: int) -> str:
+                    ncpu: int, boson_energy: float, jtol: float, stol: float, padding: int, disable_displ: bool, output_count: int) -> str:
     displacement_flag = "false" if disable_displ else "true"
     string_builder = ""
 
@@ -177,7 +177,7 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     string_builder += f"\t.TrajectoryCount = {ntraj},\n"
     string_builder += f"\t.RungeKuttaPoly  = {4},\n"
     string_builder += f"\t.JumpTolerance   = {jtol}f,\n"
-    string_builder += f"\t.ShrinkTolerance = {1e-20}f,\n"
+    string_builder += f"\t.ShrinkTolerance = {stol}f,\n"
 
     string_builder += "};\n"
     return string_builder
