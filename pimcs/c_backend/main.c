@@ -85,6 +85,7 @@ typedef complex float WaveVector[NumberOfEmitters + 1][CavityTruncation];
 struct TrajectoryState {
 	int row1, row2; // Young diagram shape
  	int rowa, rowb; // truncated diagram (with tolerance to ignore low norm states)
+	int mina, maxa; // dynamical scaling of photon mode
 	float time_step;
 
 	// displacement transform parameters
@@ -139,7 +140,7 @@ void linear_hamiltonian_integration_step(WaveVector dest, WaveVector source, str
 	memset(dest, 0, sizeof(WaveVector));
 
 	for (int n = state->rowb; n <= state->rowa; ++n) { // number of spin down
-		for (int a = 0; a < CavityTruncation; ++a) {
+		for (int a = state->mina; a <= state->maxa; ++a) {
 			int jpm = state->row1 - n; // J+M
 			int jmm = n - state->row2; // J-M
 			float m2 = (NumberOfEmitters - 2*n);
@@ -188,7 +189,7 @@ void evolve_under_H_eff(WaveVector wave, struct TrajectoryState *state) {
 		float factor = 1.0f / factorial;
 
 		for (int n = state->rowb; n <= state->rowa; ++n) {
-			for (int a = 0; a < CavityTruncation; ++a) {
+			for (int a = state->mina; a <= state->maxa; ++a) {
 				wave[n][a] += factor * b[n][a];
 			}
 		}
@@ -206,7 +207,7 @@ void evolve_under_H_eff(WaveVector wave, struct TrajectoryState *state) {
 		complex float xi = random_complex_gaussian(state->time_step);
 
 		for (int n = state->rowb; n <= state->rowa; ++n) {
-			for (int a = 0; a < CavityTruncation; ++a) {
+			for (int a = state->mina; a <= state->maxa; ++a) {
 				if (a) wave[n][a - 1] += xi * wave[n][a] * sqrtf(config.PhotonLossRate * a); // quantum state diffusion term
 				wave[n][a] -= wave[n][a] * state->ann_expect * xi; // and correction term
 			}
@@ -221,7 +222,7 @@ void evolve_under_H_eff(WaveVector wave, struct TrajectoryState *state) {
 
 void jump_spin_dephasing_same_j(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowb; n <= state->rowa; ++n) {
-		for (int a = 0; a < CavityTruncation; ++a) {
+		for (int a = state->mina; a <= state->maxa; ++a) {
 			wave[n][a] *= 0.5f * (NumberOfEmitters - 2*n);
 		}
 	}
@@ -230,7 +231,7 @@ void jump_spin_dephasing_same_j(WaveVector wave, struct TrajectoryState *state) 
 
 void jump_spin_dephasing_lower_j(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowb; n <= state->rowa; ++n) {
-		for (int a = 0; a < CavityTruncation; ++a) {
+		for (int a = state->mina; a <= state->maxa; ++a) {
 			int jpm = state->row1 - n; // J + M
 			int jmm = n - state->row2; // J - M
 
@@ -245,7 +246,7 @@ void jump_spin_dephasing_lower_j(WaveVector wave, struct TrajectoryState *state)
 
 void jump_spin_dephasing_upper_j(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowb; n <= state->rowa; ++n) {
-		for (int a = 0; a < CavityTruncation; ++a) {
+		for (int a = state->mina; a <= state->maxa; ++a) {
 			int jpm = state->row1 - n; // J + M
 			int jmm = n - state->row2; // J - M
 
@@ -260,7 +261,7 @@ void jump_spin_dephasing_upper_j(WaveVector wave, struct TrajectoryState *state)
 
 void jump_spin_loss_same_j(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowa; n >= state->rowb; --n) { // iterate backwards due to overlap
-		for (int a = 0; a < CavityTruncation; ++a) {
+		for (int a = state->mina; a <= state->maxa; ++a) {
 			int jpm = state->row1 - n; // J + M
 			int jmm = n - state->row2; // J - M
 
@@ -275,7 +276,7 @@ void jump_spin_loss_same_j(WaveVector wave, struct TrajectoryState *state) {
 
 void jump_spin_loss_lower_j(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowa; n >= state->rowb; --n) { // iterate backwards due to overlap
-		for (int a = 0; a < CavityTruncation; ++a) {
+		for (int a = state->mina; a <= state->maxa; ++a) {
 			int jpm = state->row1 - n; // J + M
 
 			wave[n + 1][a] = sqrtf((jpm - 1)*(jpm)) * wave[n][a];
@@ -291,7 +292,7 @@ void jump_spin_loss_lower_j(WaveVector wave, struct TrajectoryState *state) {
 
 void jump_spin_loss_upper_j(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowa; n >= state->rowb; --n) { // iterate backwards due to overlap
-		for (int a = 0; a < CavityTruncation; ++a) {
+		for (int a = state->mina; a <= state->maxa; ++a) {
 			int jmm = n - state->row2; // J - M
 
 			wave[n + 1][a] = sqrtf((jmm + 1)*(jmm + 2)) * wave[n][a];
@@ -307,7 +308,7 @@ void jump_spin_loss_upper_j(WaveVector wave, struct TrajectoryState *state) {
 
 void jump_spin_gain_same_j(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowb + 1; n <= state->rowa; ++n) {
-		for (int a = 0; a < CavityTruncation; ++a) {
+		for (int a = state->mina; a <= state->maxa; ++a) {
 			int jpm = state->row1 - n; // J + M
 			int jmm = n - state->row2; // J - M
 
@@ -322,7 +323,7 @@ void jump_spin_gain_same_j(WaveVector wave, struct TrajectoryState *state) {
 
 void jump_spin_gain_lower_j(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowb + 2; n <= state->rowa; ++n) {
-		for (int a = 0; a < CavityTruncation; ++a) {
+		for (int a = state->mina; a <= state->maxa; ++a) {
 			int jmm = n - state->row2; // J - M
 
 			wave[n - 1][a] = sqrtf((jmm - 1)*(jmm)) * wave[n][a];
@@ -338,7 +339,7 @@ void jump_spin_gain_lower_j(WaveVector wave, struct TrajectoryState *state) {
 
 void jump_spin_gain_upper_j(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowb; n <= state->rowa; ++n) {
-		for (int a = 0; a < CavityTruncation; ++a) {
+		for (int a = state->mina; a <= state->maxa; ++a) {
 			int jpm = state->row1 - n; // J + M
 
 			wave[n - 1][a] = sqrtf((jpm + 1)*(jpm + 2)) * wave[n][a];
@@ -376,7 +377,7 @@ float normalize_state(WaveVector wave, struct TrajectoryState *state) {
 	float norm = 0;
 
 	for (int n = state->rowb; n <= state->rowa; ++n) {
-		for (int a = 0; a < CavityTruncation; ++a) {
+		for (int a = state->mina; a <= state->maxa; ++a) {
 			norm += cnormf(wave[n][a]);
 		}
 	}
@@ -384,7 +385,7 @@ float normalize_state(WaveVector wave, struct TrajectoryState *state) {
 	float scale = 1.0f / sqrtf(norm);
 
 	for (int n = state->rowb; n <= state->rowa; ++n) {
-		for (int a = 0; a < CavityTruncation; ++a) {
+		for (int a = state->mina; a <= state->maxa; ++a) {
 			wave[n][a] *= scale;
 		}
 	}
@@ -407,6 +408,9 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 
 		.rowa = NumberOfEmitters,
 		.rowb = 0,
+
+		.mina = 0,
+		.maxa = CavityTruncation - 1,
 
 		.alpha = 0,
 		.wave = &wave_alloc.wave,
@@ -454,7 +458,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 			float photon_density[CavityTruncation] = {0};
 
 			for (int n = state.rowb; n <= state.rowa; ++n) {
-				for (int a = 0; a < CavityTruncation; ++a) {
+				for (int a = state.mina; a <= state.maxa; ++a) {
 					photon_density[a] += cnormf(wave[n][a]);
 				}
 			}
@@ -474,7 +478,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 		state.ems_expect = 0;
 
 		for (int n = state.rowb; n <= state.rowa; ++n) {
-			for (int a = 0; a < CavityTruncation; ++a) {
+			for (int a = state.mina; a <= state.maxa; ++a) {
 				float norm = cnormf(wave[n][a]);
 
 				int jpm = state.row1 - n; // J+M
@@ -632,7 +636,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 		float min_inner = 0, min_outer = 0;
 		float max_inner = 0, max_outer = 0;
 
-		for (int a = 0; a < CavityTruncation; ++a) {
+		for (int a = state.mina; a <= state.maxa; ++a) {
 			min_outer += cnormf((*state.wave)[state.rowb][a]);
 			max_outer += cnormf((*state.wave)[state.rowa][a]);
 			min_inner += cnormf((*state.wave)[state.rowb + 1][a]);
@@ -652,6 +656,29 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 			memset((*state.wave)[state.rowa], 0, sizeof (*state.wave)[0]);
 		}
 
+		// do same for photon mode
+		min_inner = 0, min_outer = 0;
+		max_inner = 0, max_outer = 0;
+
+		for (int n = state.rowb; n <= state.rowa; ++n) {
+			min_outer += cnormf((*state.wave)[n][state.mina]);
+			max_outer += cnormf((*state.wave)[n][state.maxa]);
+			min_inner += cnormf((*state.wave)[n][state.mina + 1]);
+			max_inner += cnormf((*state.wave)[n][state.maxa - 1]);
+		}
+
+		if ((min_inner + min_outer) < config.ShrinkTolerance) state.mina += 1;
+		if ((max_inner + max_outer) < config.ShrinkTolerance) state.maxa -= 1;
+
+		if (min_outer > config.ShrinkTolerance && state.mina > 0) {
+			state.mina -= 1;
+			for (int n = state.rowb; n <= state.rowa; ++n) (*state.wave)[n][state.mina] = 0;
+		}
+
+		if (max_outer > config.ShrinkTolerance && state.maxa + 1 < CavityTruncation) {
+			state.maxa += 1;
+			for (int n = state.rowb; n <= state.rowa; ++n) (*state.wave)[n][state.maxa] = 0;
+		}
 	}
 
    	if (log) fclose(log);
@@ -681,7 +708,7 @@ void two_time_correlation(complex float *expectation) {
 			memcpy(wave, steady_state_wave, sizeof(WaveVector));
 
 			for (int n = trajectory.row2; n <= trajectory.row1; ++n) {
-				for (int a = 0; a < CavityTruncation; ++a) {
+				for (int a = state->mina; a <= state.maxa; ++a) {
 					if (a) wave[n][a - 1] += factor * sqrtf(a) * wave[n][a];
 					wave[n][a] *= (1 + factor * trajectory.alpha);
 				}

@@ -3,9 +3,10 @@ from pimcs.dicke import Dicke
 import ctypes, os, random
 
 
-def generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms) -> str:
+def generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms, displace: bool) -> str:
     max_index = 0
     string_builder = ""
+    boson_alpha_term = "cnormf(state->alpha)" if displace else "0"
 
     # function definition and terms needed for z,± basis, and photon-energy term (always included)
     string_builder += (
@@ -14,8 +15,9 @@ def generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms) -> 
         "\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
         "\tint jpm = state->row1 - n;\n"
         "\tint jmm = n - state->row2;\n\n"
-        "\tdest[n][a] -= coeff * config.PhotonEnergy * (a + cnormf(state->alpha));\n"
     )
+
+    string_builder += f"\tdest[n][a] -= coeff * config.PhotonEnergy * (a + {boson_alpha_term});\n"
 
     for coeff, spins in bare_terms:
         index, _,  factor = ops_to_factor(spins)
@@ -24,18 +26,20 @@ def generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms) -> 
     
     for coeff, spins in linear_terms:
         index, _, factor = ops_to_factor(spins)
-        string_builder += f"\tdest[n + {index}][a]     -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * state->alpha;\n"
+        if displace: string_builder += f"\tdest[n + {index}][a]     -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * state->alpha;\n"
         string_builder += f"\tdest[n + {index}][a - 1] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * sqrtf(a);\n"
         max_index = max(max_index, index)
 
     for coeff, spins in linear_dagger_terms:
         index, _, factor = ops_to_factor(spins)
-        string_builder += f"\tdest[n + {index}][a]     -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * conjf(state->alpha);\n"
+        if displace: string_builder += f"\tdest[n + {index}][a]     -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * conjf(state->alpha);\n"
         string_builder += f"\tdest[n + {index}][a + 1] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * sqrtf((a + 1) % CavityTruncation);\n"
         max_index = max(max_index, index)
 
-    string_builder += f"\tdest[n][a - 1] += coeff * conjf(state->gjx_expect) * sqrtf(a);\n"
-    string_builder += f"\tdest[n][a + 1] += coeff * state->gjx_expect * sqrtf(a + 1);\n"
+    if displace:
+        string_builder += f"\tdest[n][a - 1] += coeff * conjf(state->gjx_expect) * sqrtf(a);\n"
+        string_builder += f"\tdest[n][a + 1] += coeff * state->gjx_expect * sqrtf(a + 1);\n"
+
     string_builder += "}\n\n" # terminate function
     padding = max_index + 1
 
@@ -71,14 +75,17 @@ def generate_expectation_values(expect, displace: bool) -> str:
     string_builder += (
         "void compute_expectation_values(WaveVector wave, struct TrajectoryState *state, complex float *expect) {\n"
         "\tfor (int n = state->rowb; n <= state->rowa; ++n) {\n"
-        "\t\tfor (int a = 0; a < CavityTruncation; ++a) {\n"
+        "\t\tfor (int a = state->mina; a <= state->maxa; ++a) {\n"
         "\t\t\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
         "\t\t\tint jpm = state->row1 - n;\n"
         "\t\t\tint jmm = n - state->row2;\n\n"
     )      
     
     for i, op in enumerate(expect):
-        collected = to_sum_of_products(op.displace())
+        if displace:
+            op = op.displace()
+
+        collected = to_sum_of_products(op)
 
         for coeff, spin, boson in collected:
             spin_index, boson_index, factor = ops_to_factor(spin + boson)
@@ -121,7 +128,7 @@ def generate_backend_code(H, expect, displace: bool) -> tuple[float, str]:
             bare_terms.append((coeff, spins)) 
     
     
-    code, padding = generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms)
+    code, padding = generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms, displace)
 
     string_builder = ""
     string_builder += code
