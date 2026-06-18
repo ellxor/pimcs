@@ -41,20 +41,19 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
         handle.write(config)
 
     print("Building optimized executable...")
-    lib = c.build_executable()
+    lib, hash_id = c.build_executable()
 
     print("Running trajectories...")
     coeffs = np.ascontiguousarray(psi0.coeffs, dtype = np.complex64)
-    lib.run_trajectories(coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
+    lib.run_trajectories(ctypes.c_uint64(hash_id), coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
 
     expect = np.zeros((len(e_ops), len(tlist)), dtype = np.complex128)
  
     for t in range(ntraj):
-        t, *data = np.loadtxt(f"trajectory-{t+1}.txt").T
+        t, *data = np.loadtxt(f"trajectory-{hash_id:x}-{t+1}.txt").T
 
         for i in range(len(e_ops)):
             complex_data = data[2*i] + data[2*i+1] * 1j
-            print(len(complex_data))
             expect[i] += np.interp(tlist, t, complex_data)
 
     return MCSolveResult(expect / ntraj)

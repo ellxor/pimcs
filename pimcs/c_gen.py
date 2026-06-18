@@ -1,6 +1,6 @@
 from pimcs.operators import *
 from pimcs.dicke import Dicke
-import ctypes, random, os
+import ctypes, os, random
 
 
 def generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms) -> str:
@@ -176,13 +176,12 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     return string_builder
 
 
-
 def build_executable():
     assert os.system("cc -c -std=c11 -pthread -fPIC -O3 -march=native -ffast-math pimcs/c_backend/main.c") == 0
 
-    output_id = random.randint(0, 2**64 - 1)
-    output = f"./main-{hex(output_id)}.so"
+    hash_id = random.randint(0, 2**64 - 1)
+    output = f"./main-{hash_id:x}.so"
 
     assert os.system(f"cc -fPIC -shared -o {output} main.o -lm -pthread") == 0
-    return ctypes.CDLL(output)
+    return ctypes.CDLL(output), hash_id
 

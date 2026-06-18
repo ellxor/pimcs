@@ -395,6 +395,7 @@ float normalize_state(WaveVector wave, struct TrajectoryState *state) {
 
 thread_local int simulation_index;
 complex float *initial_state;
+uint64_t prefix;
 
 
 struct TrajectoryState simulate_trajectory(float total_time, struct TrajectoryState *initial, complex float *expectation) {
@@ -435,7 +436,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 
  	if (SAVE_TRAJECTORY && !expectation) {
    		char filename[100];
-   		sprintf(filename, "trajectory-%d.txt", simulation_index);
+   		sprintf(filename, "trajectory-%llx-%d.txt", prefix, simulation_index);
    		log = fopen(filename, "wb");
  	}
 
@@ -724,13 +725,14 @@ void *thread_worker(void *output) {
 }
 
 
-void run_trajectories(complex float *inital_state_data) {
+void run_trajectories(uint64_t hash_id, complex float *inital_state_data) {
 	// static complex float expectation[THREAD_COUNT][OutputCount + 1];
 	thread_id = 0;
 	thread_pool = config.TrajectoryCount;
 	threads_complete = 0;
 	initial_state = inital_state_data;
 	total_millis = 0;
+	prefix = hash_id;
 
 	pthread_t threads[ThreadCount];
 	fprintf(stderr, "Running backend with UseDisplacement = %s\n", UseDisplacement ? "Yes" : "No");
