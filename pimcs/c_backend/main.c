@@ -451,6 +451,18 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 				fprintf(log, "\t%g\t%g", crealf(expectation[op]), cimagf(expectation[op]));
 			}
 
+			float photon_density[CavityTruncation] = {0};
+
+			for (int n = state.rowb; n <= state.rowa; ++n) {
+				for (int a = 0; a < CavityTruncation; ++a) {
+					photon_density[a] += cnormf(wave[n][a]);
+				}
+			}
+
+			for (int a = 0; a < CavityTruncation; ++a) {
+				fprintf(log, "\t%g", photon_density[a]);
+			}
+
 			fprintf(log, "\n");
  			next_write += tick_size;
  		}

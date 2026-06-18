@@ -6,8 +6,9 @@ import ctypes, math
 
 
 class MCSolveResult:
-    def __init__(self, expect):
+    def __init__(self, expect, grid):
         self.expect = expect
+        self.boson_density = grid
 
 
 def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0,
@@ -48,6 +49,7 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     lib.run_trajectories(ctypes.c_uint64(hash_id), coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
 
     expect = np.zeros((len(e_ops), len(tlist)), dtype = np.complex128)
+    grid = np.zeros((boson_dim, len(tlist)))
  
     for t in range(ntraj):
         t, *data = np.loadtxt(f"trajectory-{hash_id:x}-{t+1}.txt").T
@@ -56,5 +58,10 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
             complex_data = data[2*i] + data[2*i+1] * 1j
             expect[i] += np.interp(tlist, t, complex_data)
 
-    return MCSolveResult(expect / ntraj)
+        i = 2 * (i + 1)
+
+        for k in range(boson_dim):
+            grid[k] += np.interp(tlist, t, data[i+k])
+
+    return MCSolveResult(expect / ntraj, grid / ntraj)
 
