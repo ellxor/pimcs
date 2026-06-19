@@ -132,8 +132,10 @@ def generate_backend_code(H, expect, displace: bool) -> tuple[float, str]:
 
     string_builder = ""
     string_builder += code
-    string_builder += generate_equation_of_motion_term(linear_dagger_terms)
     string_builder += generate_expectation_values(expect, displace)
+
+    if displace:
+    	string_builder += generate_equation_of_motion_term(linear_dagger_terms)
 
     return boson_energy, padding, string_builder
 

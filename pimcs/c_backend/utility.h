@@ -1,6 +1,5 @@
 #pragma once
 #include <complex.h>
-#include <stdatomic.h>
 #include <time.h>
 
 int min(int a, int b) { return (a < b) ? a : b; }

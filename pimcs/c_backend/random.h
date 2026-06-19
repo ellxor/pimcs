@@ -2,7 +2,6 @@
 #include <complex.h>
 #include <math.h>
 #include <stdint.h>
-#include "utility.h"
 
 /*
  * Minimal pseudo-random number generator (PRNG) library for quantum trajectories.
