@@ -19,10 +19,10 @@ Check out the [example notebook](example2.ipynb) as a quick reference.
 - [ ] Add more graceful way for c backend to be killed from Python frontend - currently requires killing by PID
 - [x] Add support for initial states not in maximal J sector
 - [ ] Add support for two-time correlations to Python frontend
-- [x] Support fully quadratic Hamiltonians in the bosonic mode: (a)^2 and (a†)^2 terms
+- [x] Support arbitrary Hamiltonians
 - [ ] Add Cython backend and code generation
 - [ ] Promote operators to be Qobj operators for better QuTiP integration (using opaque data field)
-- [ ] Auto-detection of Hermitian observables: give real arrays instead of always complex valued
+- [x] Auto-detection of Hermitian observables: give real arrays instead of always complex valued
 - [ ] Add support for multiple spin spaces
 - [ ] Add support for multiple boson modes
 - [ ] Explore idea for displaced Holstein-Primakoff
