@@ -1,12 +1,11 @@
-from pimcs.operators import *
-from pimcs.dicke import Dicke
 import ctypes, os, random
+from .operators import *
+from .dicke import Dicke
 
 
-def generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms, displace: bool) -> str:
+def generate_hamiltonian_term(terms) -> str:
     max_index = 0
     string_builder = ""
-    boson_alpha_term = "cnormf(state->alpha)" if displace else "0"
 
     # function definition and terms needed for z,± basis, and photon-energy term (always included)
     string_builder += (
@@ -17,28 +16,12 @@ def generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms, dis
         "\tint jmm = n - state->row2;\n\n"
     )
 
-    string_builder += f"\tdest[n][a] -= coeff * config.PhotonEnergy * (a + {boson_alpha_term});\n"
+    for coeff, spins, bosons in terms:
+        spin_index, photon_index,  factor = ops_to_factor(spins + bosons)
+        cond = f"if (a + {photon_index} < CavityTruncation) " if photon_index > 0 else ""
 
-    for coeff, spins in bare_terms:
-        index, _,  factor = ops_to_factor(spins)
-        string_builder += f"\tdest[n + {index}][a] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor};\n"
-        max_index = max(max_index, index)
-    
-    for coeff, spins in linear_terms:
-        index, _, factor = ops_to_factor(spins)
-        if displace: string_builder += f"\tdest[n + {index}][a]     -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * state->alpha;\n"
-        string_builder += f"\tdest[n + {index}][a - 1] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * sqrtf(a);\n"
-        max_index = max(max_index, index)
-
-    for coeff, spins in linear_dagger_terms:
-        index, _, factor = ops_to_factor(spins)
-        if displace: string_builder += f"\tdest[n + {index}][a]     -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * conjf(state->alpha);\n"
-        string_builder += f"\tdest[n + {index}][a + 1] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * sqrtf((a + 1) % CavityTruncation);\n"
-        max_index = max(max_index, index)
-
-    if displace:
-        string_builder += f"\tdest[n][a - 1] += coeff * conjf(state->gjx_expect) * sqrtf(a);\n"
-        string_builder += f"\tdest[n][a + 1] += coeff * state->gjx_expect * sqrtf(a + 1);\n"
+        string_builder += f"\t{cond}dest[n + {spin_index}][a + {photon_index}] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor};\n"
+        max_index = max(max_index, photon_index)
 
     string_builder += "}\n\n" # terminate function
     padding = max_index + 1
@@ -47,28 +30,7 @@ def generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms, dis
 
 
 
-def generate_equation_of_motion_term(linear_dagger_terms) -> str:
-    string_builder = ""
-
-    # function definition and terms needed for z,± basis
-    string_builder += (
-        "void expectation_term(WaveVector wave, struct TrajectoryState *state, int n, int a) {\n"
-        "\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
-        "\tint jpm = state->row1 - n;\n"
-        "\tint jmm = n - state->row2;\n\n"
-    )
-
-    for coeff, spin in linear_dagger_terms:
-        index, _, factor = ops_to_factor(spin)
-        cond = f"(n + {index}) " + (">= state->rowb" if index < 0 else "<= state->rowa")
-        string_builder += f"\tif ({cond}) state->gjx_expect += conjf(wave[n + {index}][a]) * wave[n][a] * ({coeff.real}f + I*{coeff.imag}f) * {factor};\n"
-
-    string_builder += "}\n\n" # terminate function
-    return string_builder
-
-
-
-def generate_expectation_values(expect, displace: bool) -> str:
+def generate_expectation_values(expect) -> str:
     string_builder = ""
 
     # function definition, loop over states and terms needed for z,± basis
@@ -82,9 +44,6 @@ def generate_expectation_values(expect, displace: bool) -> str:
     )      
     
     for i, op in enumerate(expect):
-        if displace:
-            op = op.displace()
-
         collected = to_sum_of_products(op)
 
         for coeff, spin, boson in collected:
@@ -103,47 +62,15 @@ def generate_expectation_values(expect, displace: bool) -> str:
 def generate_backend_code(H, expect, displace: bool) -> tuple[float, str]:
     collected = to_sum_of_products(H)
 
-    bare_terms = []
-    linear_terms = []
-    linear_dagger_terms = []
-    boson_energy = 0
+    string_builder, padding = generate_hamiltonian_term(collected)
+    string_builder += generate_expectation_values(expect)
 
-    for coeff, spins, bosons in collected:
-        assert len(bosons) <= 2, "Hamiltonian is not yet supported!"
-    
-        if len(bosons) == 2:
-            assert len(spins) == 0, "Hamiltonian is not yet supported!"
-            assert bosons[0] == PIOperatorKind.Ad and bosons[1] == PIOperatorKind.A, "Hamiltonian is not yet supported!"
-
-            assert isclose(coeff.imag, 0), "Energy of bosonic mode must be real"
-            boson_energy = float(coeff.real)
-    
-        elif len(bosons) == 1:
-            if bosons[0] == PIOperatorKind.A:
-                linear_terms.append((coeff, spins))
-            else:
-                linear_dagger_terms.append((coeff, spins))
-    
-        else:
-            bare_terms.append((coeff, spins)) 
-    
-    
-    code, padding = generate_hamiltonian_term(bare_terms, linear_terms, linear_dagger_terms, displace)
-
-    string_builder = ""
-    string_builder += code
-    string_builder += generate_expectation_values(expect, displace)
-
-    if displace:
-    	string_builder += generate_equation_of_motion_term(linear_dagger_terms)
-
-    return boson_energy, padding, string_builder
+    return padding, string_builder
 
 
 
 def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int, ntraj: int,
-                    ncpu: int, boson_energy: float, jtol: float, stol: float, padding: int, disable_displ: bool, output_count: int) -> str:
-    displacement_flag = "false" if disable_displ else "true"
+                    ncpu: int, jtol: float, stol: float, padding: int, disable_displ: bool, output_count: int) -> str:
     string_builder = ""
 
     # constant integral values used for array lengths
@@ -153,7 +80,6 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     string_builder += f"\tExpectationOps   = {e_count},\n"
     string_builder += f"\tThreadCount      = {ncpu},\n"
     string_builder += f"\tPaddingWidth     = {padding},\n"
-    string_builder += f"\tUseDisplacement  = {displacement_flag},\n"
     string_builder += f"\tOutputCount      = {output_count},\n"
     string_builder += "};\n\n"
 
@@ -164,7 +90,6 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     #string_builder += f"\t.ExpectationOps   = {e_count},\n"
     string_builder += f"\t.TimeSpan         = {tspan[-1]}f,\n"
 
-    string_builder += f"\t.PhotonEnergy            = (float){boson_energy},\n"
     string_builder += f"\t.PhotonLossRate          = (float){system.cavity_loss},\n"
     string_builder += f"\t.DephasingRate           = (float){system.dephasing},\n"
     string_builder += f"\t.EmissionRate            = (float){system.emission},\n"
@@ -175,7 +100,6 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     string_builder += f"\t.CavityEmissionRate      = (float){system.cavity_emission},\n"
     string_builder += f"\t.CavityAbsorptionRate    = (float){system.cavity_absorption},\n"
 
-    # string_builder += f"\t.ThreadCount     = {ncpu},\n"
     string_builder += f"\t.TrajectoryCount = {ntraj},\n"
     string_builder += f"\t.RungeKuttaPoly  = {4},\n"
     string_builder += f"\t.JumpTolerance   = {jtol}f,\n"
@@ -183,6 +107,7 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
 
     string_builder += "};\n"
     return string_builder
+
 
 
 def build_executable():

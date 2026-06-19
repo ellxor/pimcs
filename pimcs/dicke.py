@@ -69,8 +69,7 @@ class DickeState:
         return result
 
     def norm(self):
-        return np.sum((self.coeffs * self.coeffs.conj()).real)
-
+        return np.sum(np.abs(self.coeffs)**2)
 
 
 # helper constructors
@@ -90,15 +89,14 @@ def excited(N: int) -> DickeState:
 
 
 def rotated_qubits(N: int, angle: float) -> DickeState:
-    if angle == 0:
-        return exicted(N)
+    cos = np.cos(angle / 2)
+    sin = np.sin(angle / 2)
 
-    # TODO: handle entire angle range properly (including poles in log-space)
-    try:
-        log_cos = np.log(np.cos(angle / 2))
-        log_sin = np.log(np.sin(angle / 2))
-    except:
-        raise ValueError(f"Invalid rotation angle, got {angle}")
+    if np.isclose(cos, 0): return ground(N)
+    if np.isclose(sin, 0): return excited(N)
+
+    log_cos = np.log(cos)
+    log_sin = np.log(sin)
 
     j = N / 2
     m = j - np.arange(0, N + 1)

@@ -25,7 +25,7 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     assert len(tlist) > 1 and tlist[0] == 0
 
     dt = tlist[1]
-    assert np.isclose(tlist[1:] - tlist[:-1], dt).all()
+    assert np.isclose(tlist[1:] - tlist[:-1], dt).all(), "tlist must be linearly spaced"
 
     spin_dim, boson_dim = validate_dimension(system.hamiltonian)
 
@@ -35,8 +35,8 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     if boson_dim is None:
         boson_dim = 1 # must have at least one, even just for free spins
 
-    boson_energy, padding, code = c.generate_backend_code(system.hamiltonian, e_ops, displace = False)
-    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, boson_energy, jtol, stol, padding, True, len(tlist))
+    padding, code = c.generate_backend_code(system.hamiltonian, e_ops, displace = False)
+    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, jtol, stol, padding, True, len(tlist))
     coeffs = np.ascontiguousarray(psi0.coeffs, dtype = np.complex64)
 
     with open("pimcs/c_backend/tmp.h", 'w') as handle:
