@@ -371,18 +371,26 @@ float normalize_state(WaveVector wave, struct TrajectoryState *state) {
 
 thread_local int simulation_index;
 complex float *initial_state;
+float initial_j_sector;
 uint64_t prefix;
 
 
 struct TrajectoryState simulate_trajectory(float total_time, struct TrajectoryState *initial) {
 	static thread_local struct WaveVectorAllocation wave_alloc;
 
-	struct TrajectoryState state = {
-		.row1 = NumberOfEmitters, // all spin down (maximal J sector)
-		.row2 = 0,
+	// (row1 - row2) = 2J
+	//  row1 + row2 = N
+	//  row1 = N/2 + J
 
-		.rowa = NumberOfEmitters,
-		.rowb = 0,
+	int row1 = (int)(NumberOfEmitters/2.0f + initial_j_sector);
+	int row2 = NumberOfEmitters - row1;
+
+	struct TrajectoryState state = {
+		.row1 = row1,
+		.row2 = row2,
+
+		.rowa = row1,
+		.rowb = row2,
 
 		.mina = 0,
 		.maxa = CavityTruncation - 1,
@@ -646,13 +654,14 @@ void *thread_worker() {
 }
 
 
-void run_trajectories(uint64_t hash_id, complex float *inital_state_data) {
+void run_trajectories(uint64_t hash_id, float j_sector, complex float *inital_state_data) {
 	thread_pool = config.TrajectoryCount;
 	threads_complete = 0;
 	thread_id = 0;
 	total_millis = 0;
 
 	initial_state = inital_state_data;
+	initial_j_sector = j_sector;
 	prefix = hash_id;
 
 	pthread_t threads[ThreadCount];

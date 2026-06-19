@@ -37,14 +37,14 @@ class Dicke:
 
 class DickeState:
     def __init__(self, j: float, m: float = None):
-        if not isinstance(j, float) or j % 0.5 != 0:
+        if j % 0.5 != 0:
             raise ValueError(f"J sector must be a half-integer value, got {j}")
 
         self.j = j
         self.coeffs = np.zeros(int(2*j + 1), dtype = np.complex128)
 
         if m is not None:
-            if not isinstance(m, float) or m % 0.5 != j % 0.5:
+            if m % 0.5 != j % 0.5:
                 raise ValueError(f"M must be a half-integer of the same kind as J, got {m}") 
 
             index = int(j - m)
@@ -74,6 +74,12 @@ class DickeState:
 
 
 # helper constructors
+
+def dicke(N: int, j: float, m: float):
+    assert 0 <= j <= N/2, "Invalid value for total spin"
+    assert np.abs(m) <= j, "Invalid m for value of j"
+    return DickeState(j,m)
+
 
 def ground(N: int) -> DickeState:
     return DickeState(N/2, -N/2)

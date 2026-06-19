@@ -17,7 +17,7 @@ Check out the [example notebook](example2.ipynb) as a quick reference.
 - [x] Relax C backend requirements to C11 (atomics) for better compatibility
 - [x] Add unified interface for single `import pimcs`
 - [ ] Add more graceful way for c backend to be killed from Python frontend - currently requires killing by PID
-- [ ] Add support for initial states not in maximal J sector
+- [x] Add support for initial states not in maximal J sector
 - [ ] Add support for two-time correlations to Python frontend
 - [ ] Support fully quadratic Hamiltonians in the bosonic mode: (a)^2 and (a†)^2 terms
 - [ ] Add Cython backend and code generation

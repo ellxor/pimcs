@@ -14,7 +14,9 @@ class MCSolveResult:
 
 def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0,
             jtol: float = 0.01, stol: float = 1e-20) -> MCSolveResult:
-    assert psi0.j == system.N/2, "Only states in the maximal J-sector are currently supported"
+
+    if psi0.j > system.N/2:
+        raise ValueError(f"J spin length is larger than N/2, where N = {system.N}")
 
     if not math.isclose(psi0.norm(), 1):
         raise ValueError(f"Initial wavefunction is not normalized, got norm of {psi0.norm()}")
@@ -35,6 +37,7 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
 
     boson_energy, padding, code = c.generate_backend_code(system.hamiltonian, e_ops, displace = False)
     config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, boson_energy, jtol, stol, padding, True, len(tlist))
+    coeffs = np.ascontiguousarray(psi0.coeffs, dtype = np.complex64)
 
     with open("pimcs/c_backend/tmp.h", 'w') as handle:
         handle.write(code)
@@ -46,8 +49,7 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     lib, hash_id = c.build_executable()
 
     print("Running trajectories...")
-    coeffs = np.ascontiguousarray(psi0.coeffs, dtype = np.complex64)
-    lib.run_trajectories(ctypes.c_uint64(hash_id), coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
+    lib.run_trajectories(ctypes.c_float(psi0.j), ctypes.c_uint64(hash_id), coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
 
     expect = np.zeros((len(e_ops), len(tlist)), dtype = np.complex128)
     boson_density = np.zeros((boson_dim, len(tlist)))
