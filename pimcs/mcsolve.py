@@ -6,9 +6,10 @@ import ctypes, math
 
 
 class MCSolveResult:
-    def __init__(self, expect, grid):
+    def __init__(self, expect, boson_density, spin_density):
         self.expect = expect
-        self.boson_density = grid
+        self.boson_density = boson_density
+        self.spin_density = spin_density
 
 
 def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0,
@@ -49,7 +50,8 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     lib.run_trajectories(ctypes.c_uint64(hash_id), coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
 
     expect = np.zeros((len(e_ops), len(tlist)), dtype = np.complex128)
-    grid = np.zeros((boson_dim, len(tlist)))
+    boson_density = np.zeros((boson_dim, len(tlist)))
+    spin_density = np.zeros((spin_dim + 1, len(tlist)))
  
     for t in range(ntraj):
         t, *data = np.loadtxt(f"trajectory-{hash_id:x}-{t+1}.txt").T
@@ -61,7 +63,16 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
         i = 2 * (i + 1)
 
         for k in range(boson_dim):
-            grid[k] += np.interp(tlist, t, data[i+k])
+            boson_density[k] += np.interp(tlist, t, data[i+k])
 
-    return MCSolveResult(expect / ntraj, grid / ntraj)
+        i += boson_dim
+
+        for k in range(spin_dim + 1):
+            spin_density[k] += np.interp(tlist, t, data[i+k])
+
+    expect /= ntraj
+    boson_density /= ntraj
+    spin_density /= ntraj
+
+    return MCSolveResult(expect, boson_density, spin_density)
 
