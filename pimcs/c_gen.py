@@ -3,6 +3,35 @@ from .operators import *
 from .dicke import Dicke
 
 
+def ops_to_factor(ops) -> tuple[int, int, str]:
+    if len(ops) == 0:
+        return 0, 0, "1"
+
+    spin_index = 0
+    boson_index = 0
+    weights = []
+
+    for op in reversed(ops):
+        match op:
+            case PIOperatorKind.Jz:
+                weights.append(f"(m + {spin_index})")
+            case PIOperatorKind.Jp:
+                weights.append(f"sqrtf((jpm + 1 - {spin_index}) * (jmm + {spin_index}))")
+                spin_index -= 1
+            case PIOperatorKind.Jm:
+                weights.append(f"sqrtf((jmm + 1 + {spin_index}) * (jpm - {spin_index}))")
+                spin_index += 1
+            case PIOperatorKind.A:
+                weights.append(f"sqrtf(a + {boson_index})")
+                boson_index -= 1
+            case PIOperatorKind.Ad:
+                weights.append(f"sqrtf(a + 1 + {boson_index})")
+                boson_index += 1
+
+    return spin_index, boson_index, " * ".join(weights)
+
+
+
 def generate_hamiltonian_term(terms) -> str:
     max_index = 0
     string_builder = ""

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Union
 from collections import defaultdict
 from enum import Enum, auto
-from math import isclose
+from numpy import isclose
 
 
 class PIOperatorKind(Enum):
@@ -12,11 +12,6 @@ class PIOperatorKind(Enum):
     Jm = auto()
     A  = auto()
     Ad = auto()
-    
-    # pseudo-operators to represent alpha (alpha * Identity)
-    Alpha = auto()
-    AlphaStar = auto()
-
 
 class BinaryOperatorKind(Enum):
     Add = auto()
@@ -27,7 +22,7 @@ class PIExpression:
     def __add__(self, other):  return BinOp(BinaryOperatorKind.Add, self,  other)
     def __mul__(self, other):  return BinOp(BinaryOperatorKind.Mul, self,  other)
     def __sub__(self, other):  return BinOp(BinaryOperatorKind.Add, self, -other)
-    def __neg__(self):         return BinOp(BinaryOperatorKind.Mul, self, -1)
+    def __neg__(self):         return BinOp(BinaryOperatorKind.Mul, self, coeff(-1))
     def __rmul__(self, other): return BinOp(BinaryOperatorKind.Mul, self, coeff(other))
 
     def __pow__(self, n: int):
@@ -49,20 +44,12 @@ class PIExpression:
             case Leaf():
                 return coeff(self.value.conjugate())
             case BinOp():
-                return BinOp(self.kind, self.left.dag(), self.right.dag())
+                return BinOp(self.kind, self.right.dag(), self.left.dag())
 
 
+    def is_herm(self):
+        return all(isclose(coeff, 0) for coeff, _, _ in to_sum_of_products(self - self.dag()))
 
-    def displace(self):
-        match self:
-            case Leaf(value = PIOperatorKind.A):
-                return BinOp(BinaryOperatorKind.Add, self, coeff(PIOperatorKind.Alpha))
-            case Leaf(value = PIOperatorKind.Ad):
-                return BinOp(BinaryOperatorKind.Add, self, coeff(PIOperatorKind.AlphaStar))
-            case Leaf():
-                return self
-            case BinOp():
-                return BinOp(self.kind, self.left.displace(), self.right.displace())
 
     _OP_NAMES = {
         PIOperatorKind.Jz: 'Jz',
@@ -70,10 +57,7 @@ class PIExpression:
         PIOperatorKind.Jm: 'J-',
         PIOperatorKind.A:  'a',
         PIOperatorKind.Ad: 'a†',
-        PIOperatorKind.Alpha: 'α',
-        PIOperatorKind.AlphaStar: 'α*',
     }
-
 
     def __str__(self):
         match self:
@@ -165,6 +149,9 @@ def expand(expr: PIQobj) -> list[list]:
         case BinOp(kind = BinaryOperatorKind.Add): return expand(expr.left) + expand(expr.right)
         case BinOp(kind = BinaryOperatorKind.Mul): return [l + r for l in expand(expr.left) for r in expand(expr.right)]
 
+    print("Error on ", expr)
+    assert False, "unreachable"
+
 
 def to_sum_of_products(expr: PIQobj):
     terms = expand(expr)
@@ -181,8 +168,6 @@ def to_sum_of_products(expr: PIQobj):
                     spins.append(value)
                 case PIOperatorKind.A | PIOperatorKind.Ad:
                     bosons.append(value)
-                case PIOperatorKind.Alpha | PIOperatorKind.AlphaStar:
-                    bosons.append(value)
                 case _:
                     coeff *= value
 
@@ -193,37 +178,4 @@ def to_sum_of_products(expr: PIQobj):
         for (spins, bosons), c in groups.items()
         if not isclose(abs(c), 0)
     ]
-
-
-
-def ops_to_factor(ops) -> tuple[int, int, str]:
-    if len(ops) == 0:
-        return 0, 0, "1"
-
-    spin_index = 0
-    boson_index = 0
-    weights = []
-
-    for op in reversed(ops):
-        match op:
-            case PIOperatorKind.Jz:
-                weights.append(f"(m + {spin_index})")
-            case PIOperatorKind.Jp:
-                weights.append(f"sqrtf((jpm + 1 - {spin_index}) * (jmm + {spin_index}))")
-                spin_index -= 1
-            case PIOperatorKind.Jm:
-                weights.append(f"sqrtf((jmm + 1 + {spin_index}) * (jpm - {spin_index}))")
-                spin_index += 1
-            case PIOperatorKind.A:
-                weights.append(f"sqrtf(a + {boson_index})")
-                boson_index -= 1
-            case PIOperatorKind.Ad:
-                weights.append(f"sqrtf(a + 1 + {boson_index})")
-                boson_index += 1
-            case PIOperatorKind.Alpha:
-                weights.append(f"state->alpha")
-            case PIOperatorKind.AlphaStar:
-                weights.append(f"conjf(state->alpha)")
-
-    return spin_index, boson_index, " * ".join(weights)
 

@@ -51,7 +51,7 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     print("Running trajectories...")
     lib.run_trajectories(ctypes.c_float(psi0.j), ctypes.c_uint64(hash_id), coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
 
-    expect = np.zeros((len(e_ops), len(tlist)), dtype = np.complex128)
+    expect = np.zeros((len(e_ops), len(tlist)), dtype = np.complex64)
     boson_density = np.zeros((boson_dim, len(tlist)))
     spin_density = np.zeros((spin_dim + 1, len(tlist)))
  
@@ -76,5 +76,6 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     boson_density /= ntraj
     spin_density /= ntraj
 
+    expect = [ e.real if op.is_herm() else e for e, op in zip(expect, e_ops) ]
     return MCSolveResult(expect, boson_density, spin_density)
 
