@@ -391,6 +391,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 		.maxa = CavityTruncation - 1,
 
 		.time = 0,
+		.time_step = 0,
 		.wave = &wave_alloc.wave,
 	};
 
@@ -419,7 +420,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 	assert(log && "failed to open file to save trajectory");
 
 	while (state.time < total_time) {
- 		if (state.time + state.time_step > next_write) {
+ 		if (state.time + state.time_step >= next_write) {
 			complex float expectation[ExpectationOps] = {0};
 			compute_expectation_values(wave, &state, expectation);
 
