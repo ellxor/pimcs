@@ -1,5 +1,6 @@
 import numpy as np
 import ctypes, math
+
 from multiprocessing import Process
 
 from .dicke import Dicke, DickeState
@@ -29,6 +30,14 @@ class MCSolver:
             ctypes.c_uint64(self.id),
             coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
         ) 
+
+
+def running_in_notebook():
+    try:
+        from IPython import get_ipython
+        return get_ipython() is not None
+    except Exception:
+        return False
 
 
 def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0,
@@ -68,9 +77,12 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     solver = MCSolver(libpath, hash_id, psi0)
 
     print("Running trajectories...")
-    thread = Process(target = solver)
-    thread.start()
-    thread.join()
+    if running_in_notebook():
+        thread = Process(target = solver)
+        thread.start()
+        thread.join()
+    else:
+        solver()
 
     expect = np.zeros((len(e_ops), len(tlist)), dtype = np.complex64)
     boson_density = np.zeros((boson_dim, len(tlist)))
