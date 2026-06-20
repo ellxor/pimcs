@@ -1,6 +1,7 @@
-from pimcs.operators import Leaf
 from scipy.special import gammaln
 import numpy as np
+
+from .operators import Leaf
 
 
 class Dicke:

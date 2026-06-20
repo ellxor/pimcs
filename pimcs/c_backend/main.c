@@ -379,10 +379,6 @@ uint64_t prefix;
 struct TrajectoryState simulate_trajectory(float total_time, struct TrajectoryState *initial) {
 	static thread_local struct WaveVectorAllocation wave_alloc;
 
-	// (row1 - row2) = 2J
-	//  row1 + row2 = N
-	//  row1 = N/2 + J
-
 	int row1 = (int)(NumberOfEmitters/2.0f + initial_j_sector);
 	int row2 = NumberOfEmitters - row1;
 

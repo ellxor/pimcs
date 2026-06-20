@@ -1,8 +1,9 @@
-from pimcs.dicke import Dicke, DickeState
-from pimcs.operators import validate_dimension
-import pimcs.c_gen as c
 import numpy as np
 import ctypes, math, multiprocessing
+
+from .dicke import Dicke, DickeState
+from .operators import validate_dimension
+from . import c_gen as c
 
 
 class MCSolveResult:

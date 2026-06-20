@@ -1,7 +1,4 @@
 struct Config {
-	float TimeSpan;
-
-	//float PhotonEnergy;
 	float PhotonLossRate;
 	float DephasingRate;
 	float EmissionRate;
@@ -12,6 +9,7 @@ struct Config {
 	float CavityEmissionRate;
 	float CavityAbsorptionRate;
 
+	float TimeSpan;
 	int TrajectoryCount;
 	int RungeKuttaPoly;
 	float JumpTolerance;

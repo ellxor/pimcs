@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Union
 from collections import defaultdict
 from enum import Enum, auto
-from numpy import isclose
+from numpy import complex64, isclose
 
 
 class PIOperatorKind(Enum):
@@ -91,7 +91,7 @@ class TimeDependent(PIExpression):
     conj: bool
 
 def coeff(value) -> Leaf:
-    return Leaf(value, None)
+    return Leaf(complex64(value), None)
 
 PIQobj = Union[Leaf, BinOp]
 

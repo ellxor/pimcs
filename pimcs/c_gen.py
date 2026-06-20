@@ -1,6 +1,6 @@
 import ctypes, os, random
-from .operators import *
 from .dicke import Dicke
+from .operators import *
 
 
 def ops_to_factor(ops) -> tuple[int, int, str]:
@@ -42,7 +42,7 @@ def generate_hamiltonian_term(terms) -> str:
         "\tcomplex float coeff = I * state->time_step * source[n][a];\n"
         "\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
         "\tint jpm = state->row1 - n;\n"
-        "\tint jmm = n - state->row2;\n\n"
+        "\tint jmm = n - state->row2;\n"
         "\tfloat t = state->time;\n\n"
     )
 
@@ -70,7 +70,7 @@ def generate_expectation_values(expect) -> str:
         "\t\tfor (int a = state->mina; a <= state->maxa; ++a) {\n"
         "\t\t\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
         "\t\t\tint jpm = state->row1 - n;\n"
-        "\t\t\tint jmm = n - state->row2;\n\n"
+        "\t\t\tint jmm = n - state->row2;\n"
         "\t\t\tfloat t = state->time;\n\n"
     )      
     
@@ -116,21 +116,17 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
 
     string_builder += "static const struct Config config = {\n";
 
-    #string_builder += f"\t.NumberOfEmitters = {system.N},\n"
-    #string_builder += f"\t.CavityTruncation = {boson_dim},\n"
-    #string_builder += f"\t.ExpectationOps   = {e_count},\n"
-    string_builder += f"\t.TimeSpan         = {tspan[-1]}f,\n"
+    string_builder += f"\t.PhotonLossRate          = {system.cavity_loss},\n"
+    string_builder += f"\t.DephasingRate           = {system.dephasing},\n"
+    string_builder += f"\t.EmissionRate            = {system.emission},\n"
+    string_builder += f"\t.PumpingRate             = {system.pumping},\n"
+    string_builder += f"\t.CollectiveDephasingRate = {system.collective_dephasing},\n"
+    string_builder += f"\t.CollectiveEmissionRate  = {system.collective_emission},\n"
+    string_builder += f"\t.CollectivePumpingRate   = {system.collective_pumping},\n"
+    string_builder += f"\t.CavityEmissionRate      = {system.cavity_emission},\n"
+    string_builder += f"\t.CavityAbsorptionRate    = {system.cavity_absorption},\n"
 
-    string_builder += f"\t.PhotonLossRate          = (float){system.cavity_loss},\n"
-    string_builder += f"\t.DephasingRate           = (float){system.dephasing},\n"
-    string_builder += f"\t.EmissionRate            = (float){system.emission},\n"
-    string_builder += f"\t.PumpingRate             = (float){system.pumping},\n"
-    string_builder += f"\t.CollectiveDephasingRate = (float){system.collective_dephasing},\n"
-    string_builder += f"\t.CollectiveEmissionRate  = (float){system.collective_emission},\n"
-    string_builder += f"\t.CollectivePumpingRate   = (float){system.collective_pumping},\n"
-    string_builder += f"\t.CavityEmissionRate      = (float){system.cavity_emission},\n"
-    string_builder += f"\t.CavityAbsorptionRate    = (float){system.cavity_absorption},\n"
-
+    string_builder += f"\t.TimeSpan        = {tspan[-1]},\n"
     string_builder += f"\t.TrajectoryCount = {ntraj},\n"
     string_builder += f"\t.RungeKuttaPoly  = {4},\n"
     string_builder += f"\t.JumpTolerance   = {jtol}f,\n"
