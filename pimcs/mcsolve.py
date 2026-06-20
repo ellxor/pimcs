@@ -2,7 +2,7 @@ from pimcs.dicke import Dicke, DickeState
 from pimcs.operators import validate_dimension
 import pimcs.c_gen as c
 import numpy as np
-import ctypes, math
+import ctypes, math, multiprocessing
 
 
 class MCSolveResult:
@@ -10,6 +10,23 @@ class MCSolveResult:
         self.expect = expect
         self.boson_density = boson_density
         self.spin_density = spin_density
+
+
+class MCSolver:
+    def __init__(self, libpath, id, psi0):
+        self.libpath = libpath
+        self.psi0 = psi0
+        self.id = id
+
+    def __call__(self):
+        coeffs = np.ascontiguousarray(self.psi0.coeffs, dtype = np.complex64)
+        lib = ctypes.CDLL(self.libpath)
+
+        lib.run_trajectories(
+            ctypes.c_float(self.psi0.j),
+            ctypes.c_uint64(self.id),
+            coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+        ) 
 
 
 def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0,
@@ -37,7 +54,6 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
 
     padding, code = c.generate_backend_code(system.hamiltonian, e_ops, displace = False)
     config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, jtol, stol, padding, True, len(tlist))
-    coeffs = np.ascontiguousarray(psi0.coeffs, dtype = np.complex64)
 
     with open("pimcs/c_backend/tmp.h", 'w') as handle:
         handle.write(code)
@@ -46,10 +62,13 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
         handle.write(config)
 
     print("Building optimized executable...")
-    lib, hash_id = c.build_executable()
+    libpath, hash_id = c.build_executable()
+    solver = MCSolver(libpath, hash_id, psi0)
 
     print("Running trajectories...")
-    lib.run_trajectories(ctypes.c_float(psi0.j), ctypes.c_uint64(hash_id), coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)))
+    p = multiprocessing.Process(target = solver)
+    p.start()
+    p.join()
 
     expect = np.zeros((len(e_ops), len(tlist)), dtype = np.complex64)
     boson_density = np.zeros((boson_dim, len(tlist)))

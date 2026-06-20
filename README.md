@@ -16,7 +16,7 @@ Check out the [example notebook](example2.ipynb) as a quick reference.
 - [ ] _High priority_: fix displaced trajectories
 - [x] Relax C backend requirements to C11 (atomics) for better compatibility
 - [x] Add unified interface for single `import pimcs`
-- [ ] Add more graceful way for c backend to be killed from Python frontend - currently requires killing by PID
+- [x] Allow C code to be stopped from Python / Jupyter notebook
 - [x] Add support for initial states not in maximal J sector
 - [ ] Add support for two-time correlations to Python frontend
 - [x] Support arbitrary Hamiltonians

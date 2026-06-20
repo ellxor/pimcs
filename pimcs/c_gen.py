@@ -146,5 +146,5 @@ def build_executable():
     output = f"./main-{hash_id:x}.so"
 
     assert os.system(f"cc -fPIC -shared -o {output} main.o -lm -pthread") == 0
-    return ctypes.CDLL(output), hash_id
+    return output, hash_id
 
