@@ -101,7 +101,7 @@ def generate_backend_code(H, expect, displace: bool) -> tuple[float, str]:
 
 
 def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int, ntraj: int,
-                    ncpu: int, jtol: float, stol: float, padding: int, disable_displ: bool, output_count: int) -> str:
+                    ncpu: int, jtol: float, stol: float, padding: int, output_count: int, rkpoly: int) -> str:
     string_builder = ""
 
     # constant integral values used for array lengths
@@ -128,9 +128,9 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
 
     string_builder += f"\t.TimeSpan        = {tspan[-1]},\n"
     string_builder += f"\t.TrajectoryCount = {ntraj},\n"
-    string_builder += f"\t.RungeKuttaPoly  = {4},\n"
-    string_builder += f"\t.JumpTolerance   = {jtol}f,\n"
-    string_builder += f"\t.ShrinkTolerance = {stol}f,\n"
+    string_builder += f"\t.RungeKuttaPoly  = {rkpoly},\n"
+    string_builder += f"\t.JumpTolerance   = {jtol},\n"
+    string_builder += f"\t.ShrinkTolerance = {stol},\n"
 
     string_builder += "};\n"
     return string_builder

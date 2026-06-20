@@ -31,7 +31,7 @@ class MCSolver:
 
 
 def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0,
-            jtol: float = 0.01, stol: float = 1e-20) -> MCSolveResult:
+            jtol: float = 0.01, stol: float = 1e-20, rkpoly: int = 4) -> MCSolveResult:
 
     if psi0.j > system.N/2:
         raise ValueError(f"J spin length is larger than N/2, where N = {system.N}")
@@ -54,7 +54,7 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
         boson_dim = 1 # must have at least one, even just for free spins
 
     padding, code = c.generate_backend_code(system.hamiltonian, e_ops, displace = False)
-    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, jtol, stol, padding, True, len(tlist))
+    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, jtol, stol, padding, len(tlist), rkpoly)
 
     with open("pimcs/c_backend/tmp.h", 'w') as handle:
         handle.write(code)
