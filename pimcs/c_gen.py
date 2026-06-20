@@ -43,13 +43,14 @@ def generate_hamiltonian_term(terms) -> str:
         "\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
         "\tint jpm = state->row1 - n;\n"
         "\tint jmm = n - state->row2;\n\n"
+        "\tfloat t = state->time;\n\n"
     )
 
-    for coeff, spins, bosons in terms:
+    for coeff, spins, bosons, tfactor in terms:
         spin_index, photon_index,  factor = ops_to_factor(spins + bosons)
         cond = f"if (a + {photon_index} < CavityTruncation) " if photon_index > 0 else ""
 
-        string_builder += f"\t{cond}dest[n + {spin_index}][a + {photon_index}] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor};\n"
+        string_builder += f"\t{cond}dest[n + {spin_index}][a + {photon_index}] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * {tfactor};\n"
         max_index = max(max_index, photon_index)
 
     string_builder += "}\n\n" # terminate function
@@ -70,18 +71,19 @@ def generate_expectation_values(expect) -> str:
         "\t\t\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
         "\t\t\tint jpm = state->row1 - n;\n"
         "\t\t\tint jmm = n - state->row2;\n\n"
+        "\t\t\tfloat t = state->time;\n\n"
     )      
     
     for i, op in enumerate(expect):
         collected = to_sum_of_products(op)
 
-        for coeff, spin, boson in collected:
+        for coeff, spin, boson, tfactor in collected:
             spin_index, boson_index, factor = ops_to_factor(spin + boson)
             cond = " && ".join([
                 f"(n + {spin_index}) " + (">= state->rowb" if spin_index < 0 else "<= state->rowa"),
                 f"(a + {boson_index}) " + (">= 0" if boson_index < 0 else "< CavityTruncation"),
             ])
-            string_builder += f"\t\t\tif ({cond}) expect[{i}] += conjf(wave[n + {spin_index}][a + {boson_index}]) * wave[n][a] * {factor};\n"
+            string_builder += f"\t\t\tif ({cond}) expect[{i}] += conjf(wave[n + {spin_index}][a + {boson_index}]) * wave[n][a] * {factor} * {tfactor};\n"
 
     string_builder += "\t\t}\n\t}\n}\n\n"
     return string_builder

@@ -20,6 +20,7 @@ Check out the [example notebook](example2.ipynb) as a quick reference.
 - [x] Add support for initial states not in maximal J sector
 - [ ] Add support for two-time correlations to Python frontend
 - [x] Support arbitrary Hamiltonians
+- [x] Add support for time-dependent Hamiltonians
 - [ ] Add Cython backend and code generation
 - [ ] Promote operators to be Qobj operators for better QuTiP integration (using opaque data field)
 - [x] Auto-detection of Hermitian observables: give real arrays instead of always complex valued

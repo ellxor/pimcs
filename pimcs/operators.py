@@ -43,6 +43,8 @@ class PIExpression:
                     case PIOperatorKind.Ad: return Leaf(PIOperatorKind.A, self.dim)
             case Leaf():
                 return coeff(self.value.conjugate())
+            case TimeDependent():
+                return TimeDependent(self.func, not self.conj)
             case BinOp():
                 return BinOp(self.kind, self.right.dag(), self.left.dag())
 
@@ -69,6 +71,8 @@ class PIExpression:
                 return f"({str(self.left)} + {str(self.right)})"
             case BinOp(kind = BinaryOperatorKind.Mul):
                 return f"({str(self.left)} * {str(self.right)})"
+            case TimeDependent():
+                return f"conjf({self.func})" if self.conj else f"({self.func})"
 
 @dataclass
 class Leaf(PIExpression):
@@ -80,6 +84,11 @@ class BinOp(PIExpression):
     kind:  BinaryOperatorKind
     left:  Expr
     right: Expr
+
+@dataclass
+class TimeDependent(PIExpression):
+    func: str
+    conj: bool
 
 def coeff(value) -> Leaf:
     return Leaf(value, None)
@@ -116,6 +125,10 @@ def jspin(N: int, op = None) -> tuple[PIQobj, ...]:
         case '-':  return jm
 
 
+def time_dependent(f):
+    return TimeDependent(f, False)
+
+
 def validate_pair(a: int | None, b: int | None) -> int | None:
     if a is None: return b
     if b is None: return a
@@ -140,7 +153,11 @@ def validate_dimension(expr: PIQobj) -> tuple[int, int]:
         case BinOp():
             ls, lb = validate_dimension(expr.left)
             rs, rb = validate_dimension(expr.right)
+            ls, lb = validate_dimension(expr.left)
             return validate_pair(ls, rs), validate_pair(lb, rb)
+
+        case TimeDependent():
+            return None, None
 
 
 def expand(expr: PIQobj) -> list[list]:
@@ -148,9 +165,8 @@ def expand(expr: PIQobj) -> list[list]:
         case Leaf(): return [[expr.value]]
         case BinOp(kind = BinaryOperatorKind.Add): return expand(expr.left) + expand(expr.right)
         case BinOp(kind = BinaryOperatorKind.Mul): return [l + r for l in expand(expr.left) for r in expand(expr.right)]
+        case TimeDependent(): return [[str(expr)]]
 
-    print("Error on ", expr)
-    assert False, "unreachable"
 
 
 def to_sum_of_products(expr: PIQobj):
@@ -161,6 +177,7 @@ def to_sum_of_products(expr: PIQobj):
         coeff = 1
         spins = []
         bosons = []
+        tfunc = ["1"]
 
         for value in term:
             match value:
@@ -168,14 +185,17 @@ def to_sum_of_products(expr: PIQobj):
                     spins.append(value)
                 case PIOperatorKind.A | PIOperatorKind.Ad:
                     bosons.append(value)
+                case str():
+                    tfunc.append(value)
                 case _:
                     coeff *= value
 
-        key = (tuple(spins), tuple(bosons))
+        tfactor = " * ".join(tfunc)
+        key = (tuple(spins), tuple(bosons), tfactor)
         groups[key] += coeff
 
-    return [(c, spins, bosons)
-        for (spins, bosons), c in groups.items()
+    return [(c, spins, bosons, tfunc)
+        for (spins, bosons, tfunc), c in groups.items()
         if not isclose(abs(c), 0)
     ]
 

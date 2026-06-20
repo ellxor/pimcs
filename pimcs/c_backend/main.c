@@ -87,6 +87,7 @@ struct TrajectoryState {
  	int rowa, rowb; // truncated diagram (with tolerance to ignore low norm states)
 	int mina, maxa; // dynamical scaling of photon mode
 
+	float time;
 	float time_step;
 	WaveVector *wave;
 };
@@ -395,6 +396,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 		.mina = 0,
 		.maxa = CavityTruncation - 1,
 
+		.time = 0,
 		.wave = &wave_alloc.wave,
 	};
 
@@ -413,8 +415,6 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 	float f_factor = precompute_f_factor(state.row1, state.row2);
 	float g_factor = precompute_g_factor(state.row1, state.row2);
 
-	float time = 0;
-
 	float tick_size = total_time / OutputCount;
 	float next_write = 0; 
 
@@ -424,12 +424,12 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 	FILE *log = fopen(filename, "wb");
 	assert(log && "failed to open file to save trajectory");
 
-	while (time < total_time) {
- 		if (time + state.time_step > next_write) {
+	while (state.time < total_time) {
+ 		if (state.time + state.time_step > next_write) {
 			complex float expectation[ExpectationOps] = {0};
 			compute_expectation_values(wave, &state, expectation);
 
-			fprintf(log, "%f", time);
+			fprintf(log, "%f", state.time);
 
 			for (int op = 0; op < ExpectationOps; ++op) {
 				fprintf(log, "\t%g\t%g", crealf(expectation[op]), cimagf(expectation[op]));
@@ -516,7 +516,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 		for (int i = 0; i < JUMP_COUNT; ++i) max_factor = fmaxf(max_factor, jump_table[i]);
 
 		state.time_step = config.JumpTolerance / max_factor;
-		time += state.time_step;
+		state.time += state.time_step;
 
 		// scale jump probabilities by dt
 		for (int i = 0; i < JUMP_COUNT; ++i) jump_table[i] *= state.time_step;
