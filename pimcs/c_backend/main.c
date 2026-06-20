@@ -94,9 +94,9 @@ struct TrajectoryState {
 
 
 struct WaveVectorAllocation {
-	complex float __padding1[PaddingWidth*CavityTruncation];
+	complex float __padding1[(SpinWidth + 1)*CavityTruncation];
 	WaveVector wave;
-	complex float __padding2[PaddingWidth*CavityTruncation];
+	complex float __padding2[(SpinWidth + 1)*CavityTruncation];
 };
 
 
@@ -244,8 +244,7 @@ void jump_spin_loss_same_j(WaveVector wave, struct TrajectoryState *state) {
 		}
 	}
 
-	state->rowa += 1;
-	state->rowb += 1;
+	memset(wave[state->rowb], 0, sizeof wave[state->rowb]);
 }
 
 
@@ -258,10 +257,10 @@ void jump_spin_loss_lower_j(WaveVector wave, struct TrajectoryState *state) {
 		}
 	}
 
+	memset(wave[state->rowb], 0, sizeof wave[state->rowb]);
+
 	state->row1 -= 1;
 	state->row2 += 1;
-	state->rowa += 1;
-	state->rowb += 1;
 }
 
 
@@ -274,15 +273,15 @@ void jump_spin_loss_upper_j(WaveVector wave, struct TrajectoryState *state) {
 		}
 	}
 
+	memset(wave[state->rowb], 0, sizeof wave[state->rowb]);
+
 	state->row1 += 1;
 	state->row2 -= 1;
-	state->rowa += 1;
-	state->rowb += 1;
 }
 
 
 void jump_spin_gain_same_j(WaveVector wave, struct TrajectoryState *state) {
-	for (int n = state->rowb + 1; n <= state->rowa; ++n) {
+	for (int n = state->rowb; n <= state->rowa; ++n) {
 		for (int a = state->mina; a <= state->maxa; ++a) {
 			int jpm = state->row1 - n; // J + M
 			int jmm = n - state->row2; // J - M
@@ -291,13 +290,12 @@ void jump_spin_gain_same_j(WaveVector wave, struct TrajectoryState *state) {
 		}
 	}
 
-	state->rowa -= 1;
-	state->rowb -= 1;
+	memset(wave[state->rowa], 0, sizeof wave[state->rowa]);
 }
 
 
 void jump_spin_gain_lower_j(WaveVector wave, struct TrajectoryState *state) {
-	for (int n = state->rowb + 2; n <= state->rowa; ++n) {
+	for (int n = state->rowb; n <= state->rowa; ++n) {
 		for (int a = state->mina; a <= state->maxa; ++a) {
 			int jmm = n - state->row2; // J - M
 
@@ -305,10 +303,10 @@ void jump_spin_gain_lower_j(WaveVector wave, struct TrajectoryState *state) {
 		}
 	}
 
+	memset(wave[state->rowa], 0, sizeof wave[state->rowa]);
+
 	state->row1 -= 1;
 	state->row2 += 1;
-	state->rowa -= 1;
-	state->rowb -= 1;
 }
 
 
@@ -321,10 +319,10 @@ void jump_spin_gain_upper_j(WaveVector wave, struct TrajectoryState *state) {
 		}
 	}
 
+	memset(wave[state->rowa], 0, sizeof wave[state->rowa]);
+
 	state->row1 += 1;
 	state->row2 -= 1;
-	state->rowa -= 1;
-	state->rowb -= 1;
 }
 
 
@@ -550,64 +548,68 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 			case EFFECTIVE_HAMILTONIAN: evolve_under_H_eff(wave, &state); break;
 		}
 
-		if (state.rowa > state.row1) state.rowa = state.row1;
-		if (state.rowb < state.row2) state.rowb = state.row2;
-
+		// if jump occured to different J sector
 		if (state.row1 != row1_copy) {
 			e_factor = precompute_e_factor(state.row1, state.row2);
 			f_factor = precompute_f_factor(state.row1, state.row2);
 			g_factor = precompute_g_factor(state.row1, state.row2);
 		}
 
+		// large-expand valid region
+		state.rowb -= config.RungeKuttaPoly * SpinWidth;
+		state.rowa += config.RungeKuttaPoly * SpinWidth;
+		state.mina -= config.RungeKuttaPoly * BosonWidth;
+		state.maxa += config.RungeKuttaPoly * BosonWidth;
+
+		// prevent exceeding bounds of Hilbert space
+		if (state.rowb < state.row2)        state.rowb = state.row2;
+		if (state.rowa > state.row1)        state.rowa = state.row1;
+		if (state.mina < 0)                 state.mina = 0;
+		if (state.maxa >= CavityTruncation) state.maxa = CavityTruncation - 1;
+
+		// normalize the wavefunction
 		normalize_state(wave, &state);
 
-		// expand bounds of spin-space as necessary
-		float min_inner = 0, min_outer = 0;
-		float max_inner = 0, max_outer = 0;
-
-		for (int a = state.mina; a <= state.maxa; ++a) {
-			min_outer += cnormf((*state.wave)[state.rowb][a]);
-			max_outer += cnormf((*state.wave)[state.rowa][a]);
-			min_inner += cnormf((*state.wave)[state.rowb + 1][a]);
-			max_inner += cnormf((*state.wave)[state.rowa - 1][a]);
+		// then shrink to fit
+		for (;; ++state.rowb) {
+			float norm = 0;
+			for (int a = state.mina; a <= state.maxa; ++a) norm += cnormf(wave[state.rowb][a]);
+			if (norm >= config.ShrinkTolerance) break;
+			for (int a = state.mina; a <= state.maxa; ++a) wave[state.rowb][a] = 0;
 		}
 
-		if ((min_inner + min_outer) < config.ShrinkTolerance) state.rowb += 1;
-		if ((max_inner + max_outer) < config.ShrinkTolerance) state.rowa -= 1;
-
-		if (min_outer > config.ShrinkTolerance && state.rowb > state.row2) {
-			state.rowb -= 1;
-			memset((*state.wave)[state.rowb], 0, sizeof (*state.wave)[0]);
+		for (;; --state.rowa) {
+			float norm = 0;
+			for (int a = state.mina; a <= state.maxa; ++a) norm += cnormf(wave[state.rowa][a]);
+			if (norm >= config.ShrinkTolerance) break;
+			for (int a = state.mina; a <= state.maxa; ++a) wave[state.rowa][a] = 0;
 		}
 
-		if (max_outer > config.ShrinkTolerance && state.rowa < state.row1) {
-			state.rowa += 1;
-			memset((*state.wave)[state.rowa], 0, sizeof (*state.wave)[0]);
+		for (;; ++state.mina) {
+			float norm = 0;
+			for (int n = state.rowb; n <= state.rowa; ++n) norm += cnormf(wave[n][state.mina]);
+			if (norm >= config.ShrinkTolerance) break;
+			for (int n = state.rowb; n <= state.rowa; ++n) wave[n][state.mina] = 0;
 		}
 
-		// do same for photon mode
-		min_inner = 0, min_outer = 0;
-		max_inner = 0, max_outer = 0;
-
-		for (int n = state.rowb; n <= state.rowa; ++n) {
-			min_outer += cnormf((*state.wave)[n][state.mina]);
-			max_outer += cnormf((*state.wave)[n][state.maxa]);
-			min_inner += cnormf((*state.wave)[n][state.mina + 1]);
-			max_inner += cnormf((*state.wave)[n][state.maxa - 1]);
+		for (;; --state.maxa) {
+			float norm = 0;
+			for (int n = state.rowb; n <= state.rowa; ++n) norm += cnormf(wave[n][state.maxa]);
+			if (norm >= config.ShrinkTolerance) break;
+			for (int n = state.rowb; n <= state.rowa; ++n) wave[n][state.maxa] = 0;
 		}
 
-		if ((min_inner + min_outer) < config.ShrinkTolerance) state.mina += 1;
-		if ((max_inner + max_outer) < config.ShrinkTolerance) state.maxa -= 1;
+		// small-expand valid region
+		state.rowb -= SpinWidth;
+		state.rowa += SpinWidth;
+		state.mina -= BosonWidth;
+		state.maxa += BosonWidth;
 
-		if (min_outer > config.ShrinkTolerance && state.mina > 0) {
-			state.mina -= 1;
-			for (int n = state.rowb; n <= state.rowa; ++n) (*state.wave)[n][state.mina] = 0;
-		}
-
-		if (max_outer > config.ShrinkTolerance && state.maxa + 1 < CavityTruncation) {
-			state.maxa += 1;
-			for (int n = state.rowb; n <= state.rowa; ++n) (*state.wave)[n][state.maxa] = 0;
-		}
+		// prevent exceeding bounds of Hilbert space
+		if (state.rowb < state.row2)        state.rowb = state.row2;
+		if (state.rowa > state.row1)        state.rowa = state.row1;
+		if (state.mina < 0)                 state.mina = 0;
+		if (state.maxa >= CavityTruncation) state.maxa = CavityTruncation - 1;
 	}
 
    	if (log) fclose(log);

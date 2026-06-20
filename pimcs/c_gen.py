@@ -33,7 +33,8 @@ def ops_to_factor(ops) -> tuple[int, int, str]:
 
 
 def generate_hamiltonian_term(terms) -> str:
-    max_index = 0
+    max_spin_index = 0
+    max_boson_index = 0
     string_builder = ""
 
     # function definition and terms needed for z,± basis, and photon-energy term (always included)
@@ -47,16 +48,16 @@ def generate_hamiltonian_term(terms) -> str:
     )
 
     for coeff, spins, bosons, tfactor in terms:
-        spin_index, photon_index,  factor = ops_to_factor(spins + bosons)
-        cond = f"if (a + {photon_index} < CavityTruncation) " if photon_index > 0 else ""
+        spin_index, boson_index, factor = ops_to_factor(spins + bosons)
 
-        string_builder += f"\t{cond}dest[n + {spin_index}][a + {photon_index}] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * {tfactor};\n"
-        max_index = max(max_index, photon_index)
+        max_spin_index = max(max_spin_index, spin_index)
+        max_boson_index = max(max_boson_index, boson_index)
+
+        cond = f"if (a + {boson_index} < CavityTruncation) " if boson_index > 0 else ""
+        string_builder += f"\t{cond}dest[n + {spin_index}][a + {boson_index}] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * {tfactor};\n"
 
     string_builder += "}\n\n" # terminate function
-    padding = max_index + 1
-
-    return string_builder, padding
+    return string_builder, max_spin_index, max_boson_index
 
 
 
@@ -93,15 +94,15 @@ def generate_expectation_values(expect) -> str:
 def generate_backend_code(H, expect, displace: bool) -> tuple[float, str]:
     collected = to_sum_of_products(H)
 
-    string_builder, padding = generate_hamiltonian_term(collected)
+    string_builder, max_spin_index, max_boson_index = generate_hamiltonian_term(collected)
     string_builder += generate_expectation_values(expect)
 
-    return padding, string_builder
+    return string_builder, max_spin_index, max_boson_index
 
 
 
 def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int, ntraj: int,
-                    ncpu: int, jtol: float, stol: float, padding: int, output_count: int, rkpoly: int) -> str:
+                    ncpu: int, jtol: float, stol: float, spin_width: int, boson_width: int, output_count: int, rkpoly: int) -> str:
     string_builder = ""
 
     # constant integral values used for array lengths
@@ -110,7 +111,8 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     string_builder += f"\tCavityTruncation = {boson_dim},\n"
     string_builder += f"\tExpectationOps   = {e_count},\n"
     string_builder += f"\tThreadCount      = {ncpu},\n"
-    string_builder += f"\tPaddingWidth     = {padding},\n"
+    string_builder += f"\tSpinWidth        = {spin_width},\n"
+    string_builder += f"\tBosonWidth       = {boson_width},\n"
     string_builder += f"\tOutputCount      = {output_count},\n"
     string_builder += "};\n\n"
 

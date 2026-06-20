@@ -1,5 +1,6 @@
 import numpy as np
-import ctypes, math, multiprocessing
+import ctypes, math
+from multiprocessing import Process
 
 from .dicke import Dicke, DickeState
 from .operators import validate_dimension
@@ -53,8 +54,8 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     if boson_dim is None:
         boson_dim = 1 # must have at least one, even just for free spins
 
-    padding, code = c.generate_backend_code(system.hamiltonian, e_ops, displace = False)
-    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, jtol, stol, padding, len(tlist), rkpoly)
+    code, spin_width, boson_width = c.generate_backend_code(system.hamiltonian, e_ops, displace = False)
+    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, jtol, stol, spin_width, boson_width, len(tlist), rkpoly)
 
     with open("pimcs/c_backend/tmp.h", 'w') as handle:
         handle.write(code)
@@ -67,9 +68,9 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     solver = MCSolver(libpath, hash_id, psi0)
 
     print("Running trajectories...")
-    p = multiprocessing.Process(target = solver)
-    p.start()
-    p.join()
+    thread = Process(target = solver)
+    thread.start()
+    thread.join()
 
     expect = np.zeros((len(e_ops), len(tlist)), dtype = np.complex64)
     boson_density = np.zeros((boson_dim, len(tlist)))
