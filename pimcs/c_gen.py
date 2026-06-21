@@ -128,7 +128,8 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     string_builder += f"\t.CavityEmissionRate      = {system.cavity_emission},\n"
     string_builder += f"\t.CavityAbsorptionRate    = {system.cavity_absorption},\n"
 
-    string_builder += f"\t.TimeSpan        = {tspan[-1]},\n"
+    string_builder += f"\t.StartTime       = {tspan[0]},\n"
+    string_builder += f"\t.EndTime         = {tspan[-1]},\n"
     string_builder += f"\t.TrajectoryCount = {ntraj},\n"
     string_builder += f"\t.RungeKuttaPoly  = {rkpoly},\n"
     string_builder += f"\t.JumpTolerance   = {jtol},\n"

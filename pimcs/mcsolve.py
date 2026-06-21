@@ -50,10 +50,10 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
         raise ValueError(f"Initial wavefunction is not normalized, got norm of {psi0.norm()}")
 
     tlist = np.array(tlist)
-    assert len(tlist) > 1 and tlist[0] == 0
+    assert len(tlist) > 1
 
-    dt = tlist[1]
-    assert np.isclose(tlist[1:] - tlist[:-1], dt).all(), "tlist must be linearly spaced"
+    dt = tlist[1] - tlist[0]
+    assert np.isclose(tlist[1:] - tlist[:-1], dt).all() and dt > 0, "tlist must be monotonically increasing and linearly spaced"
 
     spin_dim, boson_dim = validate_dimension(system.hamiltonian)
 

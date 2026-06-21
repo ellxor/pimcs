@@ -374,7 +374,7 @@ float initial_j_sector;
 uint64_t prefix;
 
 
-struct TrajectoryState simulate_trajectory(float total_time, struct TrajectoryState *initial) {
+struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 	static thread_local struct WaveVectorAllocation wave_alloc;
 
 	int row1 = (int)(NumberOfEmitters/2.0f + initial_j_sector);
@@ -390,7 +390,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 		.mina = 0,
 		.maxa = CavityTruncation - 1,
 
-		.time = 0,
+		.time = config.StartTime,
 		.time_step = 0,
 		.wave = &wave_alloc.wave,
 	};
@@ -410,7 +410,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 	float f_factor = precompute_f_factor(state.row1, state.row2);
 	float g_factor = precompute_g_factor(state.row1, state.row2);
 
-	float tick_size = total_time / OutputCount;
+	float tick_size = (config.EndTime - config.StartTime) / OutputCount;
 	float next_write = 0; 
 
 	char filename[100];
@@ -419,7 +419,7 @@ struct TrajectoryState simulate_trajectory(float total_time, struct TrajectorySt
 	FILE *log = fopen(filename, "wb");
 	assert(log && "failed to open file to save trajectory");
 
-	while (state.time < total_time) {
+	while (state.time < config.EndTime) {
  		if (state.time + state.time_step >= next_write) {
 			complex float expectation[ExpectationOps] = {0};
 			compute_expectation_values(wave, &state, expectation);
@@ -637,7 +637,7 @@ void *thread_worker() {
 		double begin = get_time_from_os();
 		simulation_index = next;
 
-		simulate_trajectory(config.TimeSpan, nullptr);
+		simulate_trajectory(nullptr);
 		double end = get_time_from_os();
 
 		int millis = (int)(1000.0f * (end - begin));

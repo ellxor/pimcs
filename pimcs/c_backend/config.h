@@ -9,7 +9,8 @@ struct Config {
 	float CavityEmissionRate;
 	float CavityAbsorptionRate;
 
-	float TimeSpan;
+	float StartTime;
+	float EndTime;
 	int TrajectoryCount;
 	int RungeKuttaPoly;
 	float JumpTolerance;
