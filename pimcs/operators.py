@@ -50,7 +50,7 @@ class PIExpression:
 
 
     def is_herm(self):
-        return all(isclose(coeff, 0) for coeff, _, _ in to_sum_of_products(self - self.dag()))
+        return all(isclose(coeff, 0) for coeff, *_ in to_sum_of_products(self - self.dag()))
 
 
     _OP_NAMES = {
