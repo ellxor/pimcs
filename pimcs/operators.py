@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Union
 from collections import defaultdict
+from collections.abc import Callable
 from enum import Enum, auto
 from numpy import complex64, isclose
 
@@ -23,7 +24,7 @@ class PIExpression:
     def __mul__(self, other):  return BinOp(BinaryOperatorKind.Mul, self,  other)
     def __sub__(self, other):  return BinOp(BinaryOperatorKind.Add, self, -other)
     def __neg__(self):         return BinOp(BinaryOperatorKind.Mul, self, coeff(-1))
-    def __rmul__(self, other): return BinOp(BinaryOperatorKind.Mul, self, coeff(other))
+    def __rmul__(self, other): return BinOp(BinaryOperatorKind.Mul, self, TimeDependent(other, False) if callable(other) else coeff(other))
 
     def __pow__(self, n: int):
         if not isinstance(n, int) or n < 0:
@@ -50,7 +51,7 @@ class PIExpression:
 
 
     def is_herm(self):
-        return all(isclose(coeff, 0) for coeff, *_ in to_sum_of_products(self - self.dag()))
+        return all(isclose(coeff, 0) for coeff, *_ in to_sum_of_products(self - self.dag(), 0))
 
 
     _OP_NAMES = {
@@ -87,7 +88,7 @@ class BinOp(PIExpression):
 
 @dataclass
 class TimeDependent(PIExpression):
-    func: str
+    func: Callable
     conj: bool
 
 def coeff(value) -> Leaf:
@@ -123,10 +124,6 @@ def jspin(N: int, op = None) -> tuple[PIQobj, ...]:
         case 'z':  return jz
         case '+':  return jp
         case '-':  return jm
-
-
-def time_dependent(f):
-    return TimeDependent(f, False)
 
 
 def validate_pair(a: int | None, b: int | None) -> int | None:
@@ -165,11 +162,11 @@ def expand(expr: PIQobj) -> list[list]:
         case Leaf(): return [[expr.value]]
         case BinOp(kind = BinaryOperatorKind.Add): return expand(expr.left) + expand(expr.right)
         case BinOp(kind = BinaryOperatorKind.Mul): return [l + r for l in expand(expr.left) for r in expand(expr.right)]
-        case TimeDependent(): return [[str(expr)]]
+        case TimeDependent(): return [[expr]]
 
 
 
-def to_sum_of_products(expr: PIQobj):
+def to_sum_of_products(expr: PIQobj, tlist: [float]):
     terms = expand(expr)
     groups = defaultdict(complex)
 
@@ -177,7 +174,7 @@ def to_sum_of_products(expr: PIQobj):
         coeff = 1
         spins = []
         bosons = []
-        tfunc = ["1"]
+        tfunc = complex(1)
 
         for value in term:
             match value:
@@ -185,13 +182,14 @@ def to_sum_of_products(expr: PIQobj):
                     spins.append(value)
                 case PIOperatorKind.A | PIOperatorKind.Ad:
                     bosons.append(value)
-                case str():
-                    tfunc.append(value)
+                case TimeDependent():
+                    arr = value.func(tlist)
+                    if value.conj: arr = arr.conj()
+                    tfunc *= arr
                 case _:
                     coeff *= value
 
-        tfactor = " * ".join(tfunc)
-        key = (tuple(spins), tuple(bosons), tfactor)
+        key = (tuple(spins), tuple(bosons), (tfunc,) if isinstance(tfunc, complex) else tuple(tfunc))
         groups[key] += coeff
 
     return [(c, spins, bosons, tfunc)

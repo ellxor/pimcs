@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import ctypes, math
 
 from multiprocessing import Process
@@ -16,19 +17,22 @@ class MCSolveResult:
 
 
 class MCSolver:
-    def __init__(self, libpath, id, psi0):
+    def __init__(self, libpath, id, psi0, tfuncs):
         self.libpath = libpath
         self.psi0 = psi0
         self.id = id
+        self.tfuncs = np.concatenate(tfuncs)
 
     def __call__(self):
         coeffs = np.ascontiguousarray(self.psi0.coeffs, dtype = np.complex64)
+        tfuncs = np.ascontiguousarray(self.tfuncs, dtype = np.complex64)
         lib = ctypes.CDLL(self.libpath)
 
         lib.run_trajectories(
             ctypes.c_float(self.psi0.j),
             ctypes.c_uint64(self.id),
             coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+            tfuncs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
         ) 
 
 
@@ -63,9 +67,13 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     if boson_dim is None:
         boson_dim = 1 # must have at least one, even just for free spins
 
-    code, spin_width, boson_width = c.generate_backend_code(system.hamiltonian, e_ops, displace = False)
-    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, jtol, stol, spin_width, boson_width, len(tlist), rkpoly)
+    tfunc_dt = 0.05 / system.N
+    tfunc_points = int((tlist[-1] - tlist[0]) / tfunc_dt)
+    tfunc_tlist = np.linspace(tlist[0], tlist[-1], tfunc_points)
 
+    code, spin_width, boson_width, tfuncs = c.generate_backend_code(system.hamiltonian, e_ops, tfunc_tlist, displace = False)
+    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, jtol, stol, spin_width, boson_width, len(tlist), rkpoly, tfunc_points)
+    
     with open("pimcs/c_backend/tmp.h", 'w') as handle:
         handle.write(code)
 
@@ -74,7 +82,7 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
 
     print("Building optimized executable...")
     libpath, hash_id = c.build_executable()
-    solver = MCSolver(libpath, hash_id, psi0)
+    solver = MCSolver(libpath, hash_id, psi0, tfuncs)
 
     print("Running trajectories...")
     if running_in_notebook():

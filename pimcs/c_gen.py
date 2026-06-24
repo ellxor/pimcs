@@ -44,20 +44,30 @@ def generate_hamiltonian_term(terms) -> str:
         "\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
         "\tint jpm = state->row1 - n;\n"
         "\tint jmm = n - state->row2;\n"
-        "\tfloat t = state->time;\n\n"
+        "\tsize_t tindex = (size_t)(TsLength * (state->time - config.StartTime) / (config.EndTime - config.StartTime));\n"
+	"\tif (tindex >= TsLength) tindex = TsLength - 1;\n\n"
     )
+
+    tfuncs = []
+    tid = 0
 
     for coeff, spins, bosons, tfactor in terms:
         spin_index, boson_index, factor = ops_to_factor(spins + bosons)
 
         max_spin_index = max(max_spin_index, spin_index)
         max_boson_index = max(max_boson_index, boson_index)
-
         cond = f"if (a + {boson_index} < CavityTruncation) " if boson_index > 0 else ""
-        string_builder += f"\t{cond}dest[n + {spin_index}][a + {boson_index}] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * {tfactor};\n"
+
+        tf_string = "1"
+        if len(tfactor) > 1:
+            tfuncs.append(tfactor)
+            tf_string = f"tfunc[{tid}][tindex]"
+            tid += 1
+
+        string_builder += f"\t{cond}dest[n + {spin_index}][a + {boson_index}] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * {tf_string};\n"
 
     string_builder += "}\n\n" # terminate function
-    return string_builder, max_spin_index, max_boson_index
+    return string_builder, max_spin_index, max_boson_index, tfuncs
 
 
 
@@ -72,37 +82,38 @@ def generate_expectation_values(expect) -> str:
         "\t\t\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
         "\t\t\tint jpm = state->row1 - n;\n"
         "\t\t\tint jmm = n - state->row2;\n"
-        "\t\t\tfloat t = state->time;\n\n"
     )      
-    
+ 
     for i, op in enumerate(expect):
-        collected = to_sum_of_products(op)
+        collected = to_sum_of_products(op, 0)
 
         for coeff, spin, boson, tfactor in collected:
+            assert len(tfactor) == 1, "observables are not currently time-dependent"
+
             spin_index, boson_index, factor = ops_to_factor(spin + boson)
             cond = " && ".join([
                 f"(n + {spin_index}) " + (">= state->rowb" if spin_index < 0 else "<= state->rowa"),
                 f"(a + {boson_index}) " + (">= 0" if boson_index < 0 else "< CavityTruncation"),
             ])
-            string_builder += f"\t\t\tif ({cond}) expect[{i}] += conjf(wave[n + {spin_index}][a + {boson_index}]) * wave[n][a] * {factor} * {tfactor};\n"
+            string_builder += f"\t\t\tif ({cond}) expect[{i}] += conjf(wave[n + {spin_index}][a + {boson_index}]) * wave[n][a] * {factor};\n"
 
     string_builder += "\t\t}\n\t}\n}\n\n"
     return string_builder
 
 
 
-def generate_backend_code(H, expect, displace: bool) -> tuple[float, str]:
-    collected = to_sum_of_products(H)
+def generate_backend_code(H, expect, tlist, displace: bool) -> tuple[float, str]:
+    collected = to_sum_of_products(H, tlist)
 
-    string_builder, max_spin_index, max_boson_index = generate_hamiltonian_term(collected)
+    string_builder, max_spin_index, max_boson_index, tfuncs = generate_hamiltonian_term(collected)
     string_builder += generate_expectation_values(expect)
 
-    return string_builder, max_spin_index, max_boson_index
+    return string_builder, max_spin_index, max_boson_index, tfuncs
 
 
 
 def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int, ntraj: int,
-                    ncpu: int, jtol: float, stol: float, spin_width: int, boson_width: int, output_count: int, rkpoly: int) -> str:
+                    ncpu: int, jtol: float, stol: float, spin_width: int, boson_width: int, output_count: int, rkpoly: int, ts: int) -> str:
     string_builder = ""
 
     # constant integral values used for array lengths
@@ -114,6 +125,7 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     string_builder += f"\tSpinWidth        = {spin_width},\n"
     string_builder += f"\tBosonWidth       = {boson_width},\n"
     string_builder += f"\tOutputCount      = {output_count},\n"
+    string_builder += f"\tTsLength         = {ts},\n"
     string_builder += "};\n\n"
 
     string_builder += "static const struct Config config = {\n";
