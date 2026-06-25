@@ -21,7 +21,7 @@ class MCSolver:
         self.libpath = libpath
         self.psi0 = psi0
         self.id = id
-        self.tfuncs = np.concatenate(tfuncs)
+        self.tfuncs = np.concatenate(tfuncs) if len(tfuncs) > 0 else np.zeros(0)
 
     def __call__(self):
         coeffs = np.ascontiguousarray(self.psi0.coeffs, dtype = np.complex64)

@@ -656,8 +656,6 @@ void *thread_worker() {
 
 
 void run_trajectories(uint64_t hash_id, float j_sector, complex float *inital_state_data, complex float (*__tfunc)[TsLength]) {
-	puts("HERE!!!!");
-
 	thread_pool = config.TrajectoryCount;
 	threads_complete = 0;
 	thread_id = 0;
