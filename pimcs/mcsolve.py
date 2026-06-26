@@ -10,11 +10,8 @@ from . import c_gen as c
 
 
 class MCSolveResult:
-    def __init__(self, expect, boson_density, spin_density):
+    def __init__(self, expect):
         self.expect = expect
-        self.boson_density = boson_density
-        self.spin_density = spin_density
-
 
 class MCSolver:
     def __init__(self, libpath, id, psi0, tfuncs):
@@ -103,20 +100,6 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
             complex_data = data[2*i] + data[2*i+1] * 1j
             expect[i] += np.interp(tlist, t, complex_data)
 
-        i = 2 * (i + 1)
-
-        for k in range(boson_dim):
-            boson_density[k] += np.interp(tlist, t, data[i+k])
-
-        i += boson_dim
-
-        for k in range(spin_dim + 1):
-            spin_density[k] += np.interp(tlist, t, data[i+k])
-
-    expect /= ntraj
-    boson_density /= ntraj
-    spin_density /= ntraj
-
-    expect = [ e.real if op.is_herm() else e for e, op in zip(expect, e_ops) ]
-    return MCSolveResult(expect, boson_density, spin_density)
+    expect = [ (e.real if op.is_herm() else e) / ntraj for e, op in zip(expect, e_ops) ]
+    return MCSolveResult(expect)
 

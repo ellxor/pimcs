@@ -148,8 +148,8 @@ void linear_hamiltonian_integration_step(WaveVector dest, WaveVector source, str
 				config.CollectiveDephasingRate * m2*m2 +
 				config.CollectiveEmissionRate * (jmm + 1)*(jpm) +
 				config.CollectivePumpingRate * (jpm + 1)*(jmm) +
-				config.CavityEmissionRate * (jmm + 1)*(jpm) * (a + 1) +
-				config.CavityAbsorptionRate * (jpm + 1)*(jmm) * a
+				config.CavityEmissionRate * (NumberOfEmitters - n) * (a + 1) +
+				config.CavityAbsorptionRate * n * a
 			);
 
 			hamiltonian_term(dest, source, state, n, a);
@@ -330,25 +330,29 @@ void jump_spin_gain_upper_j(WaveVector wave, struct TrajectoryState *state) {
 
 void jump_photon_loss(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowb; n <= state->rowa; ++n) {
-		for (int a = 1; a < CavityTruncation; ++a) {
+		for (int a = state->mina + 1; a <= state->maxa; ++a) {
 			wave[n][a - 1] = sqrtf(a) * wave[n][a];
 		}
-		wave[n][CavityTruncation - 1] = 0;
+		wave[n][state->maxa] = 0;
 	}
+
+	if (state->mina) state->mina -= 1;
 }
 
 
 void jump_photon_gain(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowb; n <= state->rowa; ++n) {
-		for (int a = CavityTruncation - 1; a > 0; --a) {
-			wave[n][a] = sqrtf(a) * wave[n][a - 1];
+		for (int a = state->maxa; a >= state->mina; --a) {
+			wave[n][a + 1] = sqrtf(a + 1) * wave[n][a];
 		}
-		wave[n][0] = 0;
+		wave[n][state->mina] = 0;
 	}
+
+	if (state->maxa + 1 < CavityTruncation) state->maxa += 1;
 }
 
 
-float normalize_state(WaveVector wave, struct TrajectoryState *state) {
+float normalize_state(WaveVector wave, struct TrajectoryState *state, int last_choice) {
 	float norm = 0;
 
 	for (int n = state->rowb; n <= state->rowa; ++n) {
@@ -432,24 +436,6 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 				fprintf(log, "\t%g\t%g", crealf(expectation[op]), cimagf(expectation[op]));
 			}
 
-			float photon_density[CavityTruncation] = {0};
-			float spin_density[NumberOfEmitters + 1] = {0};
-
-			for (int n = state.rowb; n <= state.rowa; ++n) {
-				for (int a = state.mina; a <= state.maxa; ++a) {
-					photon_density[a] += cnormf(wave[n][a]);
-					spin_density[n] += cnormf(wave[n][a]);
-				}
-			}
-
-			for (int a = 0; a < CavityTruncation; ++a) {
-				fprintf(log, "\t%g", photon_density[a]);
-			}
-
-			for (int n = 0; n <= NumberOfEmitters; ++n) {
-				fprintf(log, "\t%g", spin_density[n]);
-			}
-
 			fprintf(log, "\n");
  			next_write += tick_size;
  		}
@@ -476,9 +462,11 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 				jump_table[JUMP_SPIN_GAIN_LOWER_J] += norm * (jmm - 1)*(jmm);
 				jump_table[JUMP_SPIN_GAIN_UPPER_J] += norm * (jpm + 1)*(jpm + 2);
 
-				jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_SAME_J]  += norm * (jmm + 1)*(jpm) * (a + 1);
-				jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_LOWER_J] += norm * (jpm - 1)*(jpm) * (a + 1);
-				jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_UPPER_J] += norm * (jmm + 1)*(jmm + 2) * (a + 1);
+				if (a + 1 < CavityTruncation) {
+					jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_SAME_J]  += norm * (jmm + 1)*(jpm) * (a + 1);
+					jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_LOWER_J] += norm * (jpm - 1)*(jpm) * (a + 1);
+					jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_UPPER_J] += norm * (jmm + 1)*(jmm + 2) * (a + 1);
+				}
 
  				jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_SAME_J]  += norm * (jpm + 1)*(jmm) * a;
  				jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_LOWER_J] += norm * (jmm - 1)*(jmm) * a;
@@ -538,13 +526,13 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 			case JUMP_SPIN_GAIN_LOWER_J: jump_spin_gain_lower_j(wave, &state); break;
 			case JUMP_SPIN_GAIN_UPPER_J: jump_spin_gain_upper_j(wave, &state); break;
 
-			case JUMP_SPIN_LOSS_PHOTON_GAIN_SAME_J:  jump_spin_loss_same_j(wave, &state);  jump_photon_gain(wave, &state); break;
-			case JUMP_SPIN_LOSS_PHOTON_GAIN_LOWER_J: jump_spin_loss_lower_j(wave, &state); jump_photon_gain(wave, &state); break;
-			case JUMP_SPIN_LOSS_PHOTON_GAIN_UPPER_J: jump_spin_loss_upper_j(wave, &state); jump_photon_gain(wave, &state); break;
+			case JUMP_SPIN_LOSS_PHOTON_GAIN_SAME_J:  jump_photon_gain(wave, &state); jump_spin_loss_same_j(wave, &state);  break;
+			case JUMP_SPIN_LOSS_PHOTON_GAIN_LOWER_J: jump_photon_gain(wave, &state); jump_spin_loss_lower_j(wave, &state); break;
+			case JUMP_SPIN_LOSS_PHOTON_GAIN_UPPER_J: jump_photon_gain(wave, &state); jump_spin_loss_upper_j(wave, &state); break;
 
- 			case JUMP_SPIN_GAIN_PHOTON_LOSS_SAME_J:  jump_spin_gain_same_j(wave, &state);  jump_photon_loss(wave, &state); break;
- 			case JUMP_SPIN_GAIN_PHOTON_LOSS_LOWER_J: jump_spin_gain_lower_j(wave, &state); jump_photon_loss(wave, &state); break;
- 			case JUMP_SPIN_GAIN_PHOTON_LOSS_UPPER_J: jump_spin_gain_upper_j(wave, &state); jump_photon_loss(wave, &state); break;
+ 			case JUMP_SPIN_GAIN_PHOTON_LOSS_SAME_J:  jump_photon_loss(wave, &state); state.mina -= 1; jump_spin_gain_same_j(wave, &state);  break;
+ 			case JUMP_SPIN_GAIN_PHOTON_LOSS_LOWER_J: jump_photon_loss(wave, &state); state.mina -= 1; jump_spin_gain_lower_j(wave, &state); break;
+ 			case JUMP_SPIN_GAIN_PHOTON_LOSS_UPPER_J: jump_photon_loss(wave, &state); state.mina -= 1; jump_spin_gain_upper_j(wave, &state); break;
 
 			case JUMP_PHOTON_LOSS: jump_photon_loss(wave, &state); break;
 
@@ -571,7 +559,7 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 		if (state.maxa >= CavityTruncation) state.maxa = CavityTruncation - 1;
 
 		// normalize the wavefunction
-		normalize_state(wave, &state);
+		normalize_state(wave, &state, choice);
 
 		// then shrink to fit
 		for (;; ++state.rowb) {

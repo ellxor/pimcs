@@ -20,7 +20,7 @@ class Dicke:
         cavity_loss: float = 0.0,
     ):
         if hamiltonian is None:
-            hamiltonian = Leaf(1) # identity
+            hamiltonian = Leaf(1, N) # identity
 
         self.N = N
         self.hamiltonian = hamiltonian
@@ -55,17 +55,17 @@ class DickeState:
         if self.j != other.j:
             raise ValueError(f"Cannot add Dicke states of different J sectors: {self.j} != {other.j}")
 
-        result = Dicke(self.j) 
+        result = DickeState(self.j)
         result.coeffs = self.coeffs + other.coeffs
         return result
 
-    def __mul__(self, other: complex) -> DickeState:
+    def __rmul__(self, other: complex) -> DickeState:
         try:
             other = np.complex128(other)
         except (TypeError, ValueError) as e:
             raise ValueError(f"Cannot convert {value!r} to a complex number") from e
 
-        result = Dicke(self.j)
+        result = DickeState(self.j)
         result.coeffs = self.coeffs * other
         return result
 
