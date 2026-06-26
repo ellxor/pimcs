@@ -42,7 +42,7 @@ def running_in_notebook():
 
 
 def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0,
-            jtol: float = 0.01, stol: float = 1e-20, rkpoly: int = 4) -> MCSolveResult:
+            jtol: float = 0.05, stol: float = 1e-20, rkpoly: int = 4) -> MCSolveResult:
 
     if psi0.j > system.N/2:
         raise ValueError(f"J spin length is larger than N/2, where N = {system.N}")
