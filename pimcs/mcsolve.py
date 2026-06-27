@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import ctypes, math
 
 from multiprocessing import Process
