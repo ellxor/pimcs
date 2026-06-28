@@ -330,7 +330,7 @@ void jump_spin_gain_upper_j(WaveVector wave, struct TrajectoryState *state) {
 
 void jump_photon_loss(WaveVector wave, struct TrajectoryState *state) {
 	for (int n = state->rowb; n <= state->rowa; ++n) {
-		for (int a = state->mina + 1; a <= state->maxa; ++a) {
+		for (int a = state->mina; a <= state->maxa; ++a) {
 			wave[n][a - 1] = sqrtf(a) * wave[n][a];
 		}
 		wave[n][state->maxa] = 0;
