@@ -13,6 +13,8 @@ class PIOperatorKind(Enum):
     Jm = auto()
     A  = auto()
     Ad = auto()
+    Ap = auto()
+    As = auto()
 
 class BinaryOperatorKind(Enum):
     Add = auto()
@@ -52,6 +54,14 @@ class PIExpression:
 
     def is_herm(self):
         return all(isclose(coeff, 0) for coeff, *_ in to_sum_of_products(self - self.dag(), 0))
+
+
+    def displace(self):
+        match self:
+            case Leaf(PIOperatorKind.A):  return BinOp(BinaryOperatorKind.Add, self, Leaf(PIOperatorKind.Ap, None))
+            case Leaf(PIOperatorKind.Ad): return BinOp(BinaryOperatorKind.Add, self, Leaf(PIOperatorKind.As, None))
+            case BinOp(): return BinOp(self.kind, self.left.displace(), self.right.displace())
+            case _:       return self
 
 
     _OP_NAMES = {
@@ -180,7 +190,7 @@ def to_sum_of_products(expr: PIQobj, tlist: [float]):
             match value:
                 case PIOperatorKind.Jz | PIOperatorKind.Jp | PIOperatorKind.Jm:
                     spins.append(value)
-                case PIOperatorKind.A | PIOperatorKind.Ad:
+                case PIOperatorKind.A | PIOperatorKind.Ad | PIOperatorKind.Ap | PIOperatorKind.As:
                     bosons.append(value)
                 case TimeDependent():
                     arr = value.func(tlist)
