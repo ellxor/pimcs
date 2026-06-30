@@ -158,10 +158,11 @@ void linear_hamiltonian_integration_step(WaveVector dest, WaveVector source, str
 
 			hamiltonian_term(dest, source, state, n, a);
 
-			complex float alpha_dot_eff = (state->alpha_dot + config.PhotonLossRate/2 * state->alpha) * state->time_step;
-
-			if (a + 1 < CavityTruncation) dest[n][a + 1] -= source[n][a] * alpha_dot_eff * sqrtf(a + 1);
-			if (a > 0)                    dest[n][a - 1] += source[n][a] * conjf(alpha_dot_eff) * sqrtf(a);
+			if (UseDisplacement) {
+				complex float alpha_dot_eff = (state->alpha_dot + config.PhotonLossRate/2 * state->alpha) * state->time_step;
+				if (a + 1 < CavityTruncation) dest[n][a + 1] -= source[n][a] * alpha_dot_eff * sqrtf(a + 1);
+				if (a > 0)                    dest[n][a - 1] += source[n][a] * conjf(alpha_dot_eff) * sqrtf(a);
+			}
 		}
 	}
 }
@@ -518,7 +519,10 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 		int64 choice = select_random_jump(jump_table);
 		int64 row1_copy = state.row1;
 
-		state.alpha_dot = -config.PhotonLossRate/2 * state.alpha - I * compute_alpha_eom(wave, &state);
+		if (UseDisplacement) {
+			extern complex float compute_alpha_eom(WaveVector, struct TrajectoryState *);
+			state.alpha_dot = -config.PhotonLossRate/2 * state.alpha - I * compute_alpha_eom(wave, &state);
+		}
 
 		switch (choice) {
 			case JUMP_COLLECTIVE_SPIN_DEPHASING: jump_spin_dephasing_same_j(wave, &state); break;

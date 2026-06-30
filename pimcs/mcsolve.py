@@ -69,8 +69,8 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     tfunc_tlist = np.linspace(tlist[0], tlist[-1], tfunc_points)
 
     code, spin_width, boson_width, tfuncs = c.generate_backend_code(system.hamiltonian, e_ops, tfunc_tlist, displace = enable_experimental_displacement)
-    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, jtol, stol, spin_width, boson_width, len(tlist), rkpoly, tfunc_points)
-    
+    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, jtol, stol, spin_width, boson_width, len(tlist), rkpoly, tfunc_points, enable_experimental_displacement)
+
     with open("pimcs/c_backend/tmp.h", 'w') as handle:
         handle.write(code)
 

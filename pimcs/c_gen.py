@@ -175,7 +175,7 @@ def generate_backend_code(H, expect, tlist, displace: bool):
 
 
 def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int, ntraj: int,
-                    ncpu: int, jtol: float, stol: float, spin_width: int, boson_width: int, output_count: int, rkpoly: int, ts: int) -> str:
+                    ncpu: int, jtol: float, stol: float, spin_width: int, boson_width: int, output_count: int, rkpoly: int, ts: int, displace: bool) -> str:
     string_builder = ""
 
     # constant integral values used for array lengths
@@ -188,6 +188,7 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     string_builder += f"\tBosonWidth       = {boson_width},\n"
     string_builder += f"\tOutputCount      = {output_count},\n"
     string_builder += f"\tTsLength         = {ts},\n"
+    string_builder += f"\tUseDisplacement  = {int(displace)},\n"
     string_builder += "};\n\n"
 
     string_builder += "static const struct Config config = {\n";
