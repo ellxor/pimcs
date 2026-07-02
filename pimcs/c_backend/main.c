@@ -94,6 +94,7 @@ struct TrajectoryState {
 
 	complex float alpha;
 	complex float alpha_dot;
+	complex float annihilation;
 };
 
 
@@ -145,8 +146,8 @@ void linear_hamiltonian_integration_step(WaveVector dest, WaveVector source, str
 
 			// Jump dagger jump terms from effective Hamiltonian
 			dest[n][a] -= source[n][a] * state->time_step/2 * (
-				config.PhotonLossRate * a +
-				config.DephasingRate * NumberOfEmitters +
+				config.PhotonLossRate * a + //(a + cnormf(state->annihilation)) + //(norm shrinkage)
+				// config.DephasingRate * NumberOfEmitters + //(norm shrinkage)
 				config.EmissionRate * (NumberOfEmitters - n) +
 				config.PumpingRate * n +
 				config.CollectiveDephasingRate * m2*m2 +
@@ -156,6 +157,7 @@ void linear_hamiltonian_integration_step(WaveVector dest, WaveVector source, str
 				config.CavityAbsorptionRate * n * a
 			);
 
+			dest[n][a - 1] += source[n][a] * config.PhotonLossRate * state->time_step * conjf(state->annihilation) * sqrtf(a); // quantum state diffusion correction
 			hamiltonian_term(dest, source, state, n, a);
 
 			if (UseDisplacement) {
@@ -199,6 +201,15 @@ void evolve_under_H_eff(WaveVector wave, struct TrajectoryState *state) {
 		complex float (*tmp)[CavityTruncation] = a;
 		a = b;
 		b = tmp;
+	}
+
+	complex float dxi = random_complex_gaussian(state->time_step);
+
+	for (int64 n = state->rowb; n <= state->rowa; ++n) {
+		for (int64 a = state->mina; a <= state->maxa; ++a) {
+			wave[n][a - 1] += wave[n][a] * sqrtf(config.PhotonLossRate * a) * dxi;
+			// wave[n][a] -= wave[n][a] * sqrtf(config.PhotonLossRate) * state->annihilation * dxi; //(norm shrinkage)
+		}
 	}
 }
 
@@ -451,6 +462,7 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
  		}
 
 		float jump_table[JUMP_COUNT] = {0};
+		state.annihilation = 0;
 
 		for (int64 n = state.rowb; n <= state.rowa; ++n) {
 			for (int64 a = state.mina; a <= state.maxa; ++a) {
@@ -483,6 +495,7 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
  				jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_UPPER_J] += norm * (jpm + 1)*(jpm + 2) * a;
 
 				jump_table[JUMP_PHOTON_LOSS] += norm * a;
+				state.annihilation += conjf(wave[n][a - 1]) * wave[n][a] * sqrtf(a);
 			}
 		}
 
@@ -549,8 +562,7 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 			case JUMP_SPIN_GAIN_PHOTON_LOSS_LOWER_J: jump_photon_loss(wave, &state); jump_spin_gain_lower_j(wave, &state); break;
 			case JUMP_SPIN_GAIN_PHOTON_LOSS_UPPER_J: jump_photon_loss(wave, &state); jump_spin_gain_upper_j(wave, &state); break;
 
-			case JUMP_PHOTON_LOSS: jump_photon_loss(wave, &state); break;
-
+			case JUMP_PHOTON_LOSS: // jump_photon_loss(wave, &state); break;
 			case EFFECTIVE_HAMILTONIAN: evolve_under_H_eff(wave, &state); state.alpha += state.alpha_dot * state.time_step; break;
 		}
 
