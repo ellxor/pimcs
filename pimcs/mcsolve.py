@@ -42,7 +42,7 @@ def running_in_notebook():
 
 def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0,
             jtol: float = 0.05, stol: float = 1e-20, rkpoly: int = 4,
-	    enable_experimental_displacement: bool = False) -> MCSolveResult:
+	    enable_displacement: bool = False) -> MCSolveResult:
 
     if psi0.j > system.N/2:
         raise ValueError(f"J spin length is larger than N/2, where N = {system.N}")
@@ -64,12 +64,18 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     if boson_dim is None:
         boson_dim = 1 # must have at least one, even just for free spins
 
+    if enable_displacement:
+        if boson_dim > 6:
+            raise ValueError(f"Displacement should use a small photon truncation:\n\trecommended: 4\n\trequired: <= 6")
+        if system.cavity_absorption != 0 or system.cavity_emission != 0:
+            raise ValueError(f"Displacement does not yet support these decay channels")
+
     tfunc_dt = 0.05 / system.N
     tfunc_points = int((tlist[-1] - tlist[0]) / tfunc_dt)
     tfunc_tlist = np.linspace(tlist[0], tlist[-1], tfunc_points)
 
-    code, spin_width, boson_width, tfuncs = c.generate_backend_code(system.hamiltonian, e_ops, tfunc_tlist, displace = enable_experimental_displacement)
-    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, jtol, stol, spin_width, boson_width, len(tlist), rkpoly, tfunc_points, enable_experimental_displacement)
+    code, spin_width, boson_width, tfuncs = c.generate_backend_code(system.hamiltonian, e_ops, tfunc_tlist, displace = enable_displacement)
+    config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, jtol, stol, spin_width, boson_width, len(tlist), rkpoly, tfunc_points, enable_displacement)
 
     with open("pimcs/c_backend/tmp.h", 'w') as handle:
         handle.write(code)

@@ -105,63 +105,8 @@ def generate_expectation_values(expect) -> str:
     return string_builder
 
 
-def generate_alpha_eom(H):
-    terms = to_sum_of_products(H, None)
-    string_builder = ""
-
-    # for all terms:
-    # - use normal ordering in expansion
-    # - then for each term (a†)^k -> k (a†)^(k - 1) [+ a...]
-    # - and the a... terms all commute so the other term disappears [A,BC] = [A,B]C + B[A,C]
-
-    string_builder += (
-        "complex float compute_alpha_eom(WaveVector wave, struct TrajectoryState *state) {\n"
-        "\tcomplex float expect = 0;\n\n"
-        "\tfor (int64 n = state->rowb; n <= state->rowa; ++n) {\n"
-        "\t\tfor (int64 a = state->mina; a <= state->maxa; ++a) {\n"
-        "\t\t\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
-        "\t\t\tint64 jpm = state->row1 - n;\n"
-        "\t\t\tint64 jmm = n - state->row2;\n"
-    )      
- 
-    for coeff, spin, boson, tfactor in terms:
-        if len(tfactor) > 1:
-            raise ValueError(f"Time-dependent Hamiltonian are not supported with displacement yet!")
-
-        if len(boson) > 2:
-            raise ValueError(f"This Hamiltonian is not yet supported with displacement enabled (only up to quadratic in boson mode)!")
-
-        match boson:
-            case [PIOperatorKind.A, PIOperatorKind.Ad] | [PIOperatorKind.Ad, PIOperatorKind.A]:
-                assert len(spin) == 0, "not yet implemented!"
-                commutator = "state->alpha" # a
-            case [PIOperatorKind.Ad, PIOperatorKind.Ad]:
-                assert False, "not yet implemented!"
-                commutator = "2 * conjf(state->alpha)" #  2a†
-            case [PIOperatorKind.Ad]:
-                commutator = "1"
-            case _:
-                continue
-
-        spin_index, _, factor = ops_to_factor(spin)
-        boson_index = 0 # TODO: fix with above
-
-        cond = " && ".join([
-            f"(n + {spin_index}) " + (">= state->rowb" if spin_index < 0 else "<= state->rowa"),
-            f"(a + {boson_index}) " + (">= 0" if boson_index < 0 else "< CavityTruncation"),
-        ])
-
-        string_builder += f"\t\t\tif ({cond}) expect += ({coeff.real}f + I*{coeff.imag}f) * conjf(wave[n + {spin_index}][a + {boson_index}]) * wave[n][a] * {factor} * {commutator};\n"
-
-    string_builder += "\t\t}\n\t}\n\n\treturn expect;\n}\n\n"
-    return string_builder
-
-
 def generate_backend_code(H, expect, tlist, displace: bool):
-    extra = ""
-
     if displace:
-        extra = generate_alpha_eom(H)
         H = H.displace()
         expect = [op.displace() for op in expect]
 
@@ -169,7 +114,6 @@ def generate_backend_code(H, expect, tlist, displace: bool):
 
     string_builder, max_spin_index, max_boson_index, tfuncs = generate_hamiltonian_term(collected)
     string_builder += generate_expectation_values(expect)
-    string_builder += extra
 
     return string_builder, max_spin_index, max_boson_index, tfuncs
 

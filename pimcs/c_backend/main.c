@@ -93,7 +93,6 @@ struct TrajectoryState {
 	WaveVector *wave;
 
 	complex float alpha;
-	complex float alpha_dot;
 	complex float annihilation;
 };
 
@@ -157,13 +156,15 @@ void linear_hamiltonian_integration_step(WaveVector dest, WaveVector source, str
 				config.CavityAbsorptionRate * n * a
 			);
 
-			dest[n][a - 1] += source[n][a] * config.PhotonLossRate * state->time_step * conjf(state->annihilation) * sqrtf(a); // quantum state diffusion correction
+			// QSD correction term
+			dest[n][a - 1] += source[n][a] * config.PhotonLossRate * state->time_step * conjf(state->annihilation) * sqrtf(a);
 			hamiltonian_term(dest, source, state, n, a);
 
 			if (UseDisplacement) {
-				complex float alpha_dot_eff = (state->alpha_dot + config.PhotonLossRate/2 * state->alpha) * state->time_step;
-				if (a + 1 < CavityTruncation) dest[n][a + 1] -= source[n][a] * alpha_dot_eff * sqrtf(a + 1);
-				if (a > 0)                    dest[n][a - 1] += source[n][a] * conjf(alpha_dot_eff) * sqrtf(a);
+				complex float shift = (state->alpha * config.PhotonLossRate * state->time_step) / 2;
+
+				if (a - 1 >= 0)               dest[n][a - 1] += source[n][a] * conjf(shift) * sqrtf(a);
+				if (a + 1 < CavityTruncation) dest[n][a + 1] -= source[n][a] *       shift  * sqrtf(a + 1);
 			}
 		}
 	}
@@ -211,6 +212,54 @@ void evolve_under_H_eff(WaveVector wave, struct TrajectoryState *state) {
 			// wave[n][a] -= wave[n][a] * sqrtf(config.PhotonLossRate) * state->annihilation * dxi; //(norm shrinkage)
 		}
 	}
+}
+
+
+void linear_displacement_step(WaveVector dest, WaveVector source, struct TrajectoryState *state, complex float shift) {
+	memset(dest, 0, sizeof(WaveVector));
+
+	for (int64 n = state->rowb; n <= state->rowa; ++n) {
+		for (int64 a = state->mina; a <= state->maxa; ++a) {
+			if (a - 1 >= 0)               dest[n][a - 1] += source[n][a] * conjf(shift) * sqrtf(a);
+			if (a + 1 < CavityTruncation) dest[n][a + 1] -= source[n][a] *       shift  * sqrtf(a + 1);
+		}
+	}
+}
+
+
+void displace(WaveVector wave, struct TrajectoryState *state, complex float shift) {
+	// In this case of an exponential and linear Hamiltonian, the Runge-Kutta method
+	// is identical to a Taylor series expansion, so this is performed directly for efficiency.
+
+	static thread_local struct WaveVectorAllocation _a, _b; // Create two temporary vectors using double-buffering technique.
+	complex float (*a)[CavityTruncation] = wave; // Controlled by pointers which are cheap to swap.
+	complex float (*b)[CavityTruncation] = _b.wave;
+
+	int64 factorial = 1;
+	const int64 TaylorSeriesTerms = 4;
+
+	for (int64 i = 1; i <= TaylorSeriesTerms; ++i) {
+		linear_displacement_step(b, a, state, shift); // |b> = -i Heff dt |a>
+		factorial *= i;
+
+		// accumulate Taylor series expansion
+		float factor = 1.0f / factorial;
+
+		for (int64 n = state->rowb; n <= state->rowa; ++n) {
+			for (int64 a = state->mina; a <= state->maxa; ++a) {
+				wave[n][a] += factor * b[n][a];
+			}
+		}
+
+		if (i == 1) a = _a.wave; // a is temporarily set to wave for first iteration to avoid a copy
+
+		// perform double-buffering: swap pointers
+		complex float (*tmp)[CavityTruncation] = a;
+		a = b;
+		b = tmp;
+	}
+
+	state->alpha += shift;
 }
 
 
@@ -532,11 +581,6 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 		int64 choice = select_random_jump(jump_table);
 		int64 row1_copy = state.row1;
 
-		if (UseDisplacement) {
-			extern complex float compute_alpha_eom(WaveVector, struct TrajectoryState *);
-			state.alpha_dot = -config.PhotonLossRate/2 * state.alpha - I * compute_alpha_eom(wave, &state);
-		}
-
 		switch (choice) {
 			case JUMP_COLLECTIVE_SPIN_DEPHASING: jump_spin_dephasing_same_j(wave, &state); break;
 			case JUMP_COLLECTIVE_SPIN_LOSS: jump_spin_loss_same_j(wave, &state); break;
@@ -562,8 +606,8 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 			case JUMP_SPIN_GAIN_PHOTON_LOSS_LOWER_J: jump_photon_loss(wave, &state); jump_spin_gain_lower_j(wave, &state); break;
 			case JUMP_SPIN_GAIN_PHOTON_LOSS_UPPER_J: jump_photon_loss(wave, &state); jump_spin_gain_upper_j(wave, &state); break;
 
-			case JUMP_PHOTON_LOSS: // jump_photon_loss(wave, &state); break;
-			case EFFECTIVE_HAMILTONIAN: evolve_under_H_eff(wave, &state); state.alpha += state.alpha_dot * state.time_step; break;
+			case JUMP_PHOTON_LOSS: // fallthrough (no photon jump, using QSD)
+			case EFFECTIVE_HAMILTONIAN: evolve_under_H_eff(wave, &state); break;
 		}
 
 		// if jump occured to different J sector
@@ -573,7 +617,7 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 			g_factor = precompute_g_factor(state.row1, state.row2);
 		}
 
-		// large-expand valid region
+		// expand valid region
 		state.rowb -= config.RungeKuttaPoly * SpinWidth;
 		state.rowa += config.RungeKuttaPoly * SpinWidth;
 		state.mina -= config.RungeKuttaPoly * BosonWidth;
@@ -587,6 +631,19 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 
 		// normalize the wavefunction
 		normalize_state(wave, &state, choice);
+
+		if (UseDisplacement) {
+			complex float annihilation = 0;
+
+			for (int64 n = state.rowb; n <= state.rowa; ++n) {
+				for (int64 a = state.mina; a <= state.maxa; ++a) {
+					annihilation += conj(wave[n][a - 1]) * wave[n][a] * sqrtf(a);
+
+				}
+			}
+
+			if (cnormf(annihilation) > 0.01) displace(wave, &state, annihilation);
+		}
 
 		// then shrink to fit
 		for (;; ++state.rowb) {
@@ -603,18 +660,20 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 			for (int64 a = state.mina; a <= state.maxa; ++a) wave[state.rowa][a] = 0;
 		}
 
-		for (;; ++state.mina) {
-			float norm = 0;
-			for (int64 n = state.rowb; n <= state.rowa; ++n) norm += cnormf(wave[n][state.mina]);
-			if (norm >= config.ShrinkTolerance) break;
-			for (int64 n = state.rowb; n <= state.rowa; ++n) wave[n][state.mina] = 0;
-		}
+		if (!UseDisplacement) { // only shrink if state is not displaced!
+			for (;; ++state.mina) {
+				float norm = 0;
+				for (int64 n = state.rowb; n <= state.rowa; ++n) norm += cnormf(wave[n][state.mina]);
+				if (norm >= config.ShrinkTolerance) break;
+				for (int64 n = state.rowb; n <= state.rowa; ++n) wave[n][state.mina] = 0;
+			}
 
-		for (;; --state.maxa) {
-			float norm = 0;
-			for (int64 n = state.rowb; n <= state.rowa; ++n) norm += cnormf(wave[n][state.maxa]);
-			if (norm >= config.ShrinkTolerance) break;
-			for (int64 n = state.rowb; n <= state.rowa; ++n) wave[n][state.maxa] = 0;
+			for (;; --state.maxa) {
+				float norm = 0;
+				for (int64 n = state.rowb; n <= state.rowa; ++n) norm += cnormf(wave[n][state.maxa]);
+				if (norm >= config.ShrinkTolerance) break;
+				for (int64 n = state.rowb; n <= state.rowa; ++n) wave[n][state.maxa] = 0;
+			}
 		}
 
 		// small-expand valid region
