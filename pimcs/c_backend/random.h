@@ -8,7 +8,7 @@
  */
 
 static const uint64_t HighBit = (uint64_t)1 << 63;
-static const float TwoPi = 2.0f * (float)M_PI;
+static const double TwoPi = 2 * M_PI;
 
 static thread_local uint64_t _random_seed = HighBit;
 
@@ -26,14 +26,14 @@ uint64_t random_u64() {
 }
 
 // Generate a uniform random variable from (0,1)
-float random_uniform() {
-	return (float)random_u64() / (float)UINT64_MAX;
+double random_uniform() {
+	return (double)random_u64() / (double)UINT64_MAX;
 }
 
 // Generate a normal random complex variable with mean of zero.
-complex float random_complex_gaussian(float variance) {
-	float radius = sqrtf(-2.0f * logf(random_uniform()));
-	float angle = TwoPi * random_uniform();
+complex double random_complex_gaussian(float variance) {
+	double radius = sqrt(-2.0 * log(random_uniform()));
+	double angle = TwoPi * random_uniform();
 
-	return sqrtf(0.5f * variance) * radius * (cosf(angle) + I*sinf(angle));
+	return sqrt(0.5 * variance) * radius * (cos(angle) + I*sin(angle));
 }

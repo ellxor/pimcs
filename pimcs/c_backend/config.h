@@ -1,19 +1,19 @@
 struct Config {
-	float PhotonLossRate;
-	float DephasingRate;
-	float EmissionRate;
-	float PumpingRate;
-	float CollectiveDephasingRate;
-	float CollectiveEmissionRate;
-	float CollectivePumpingRate;
-	float CavityEmissionRate;
-	float CavityAbsorptionRate;
+	double PhotonLossRate;
+	double DephasingRate;
+	double EmissionRate;
+	double PumpingRate;
+	double CollectiveDephasingRate;
+	double CollectiveEmissionRate;
+	double CollectivePumpingRate;
+	double CavityEmissionRate;
+	double CavityAbsorptionRate;
 
-	float StartTime;
-	float EndTime;
+	double StartTime;
+	double EndTime;
 	int TrajectoryCount;
 	int RungeKuttaPoly;
-	float JumpTolerance;
-	float ShrinkTolerance;
+	double JumpTolerance;
+	double ShrinkTolerance;
 };
 

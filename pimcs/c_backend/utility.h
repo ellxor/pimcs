@@ -5,9 +5,9 @@
 int min(int a, int b) { return (a < b) ? a : b; }
 int max(int a, int b) { return (a > b) ? a : b; }
 
-float cnormf(complex float c) {
-	float r = crealf(c);
-	float i = cimagf(c);
+double cnorm(complex double c) {
+	double r = creal(c);
+	double i = cimag(c);
 	return r*r + i*i;
 }
 

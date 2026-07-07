@@ -16,21 +16,21 @@ def ops_to_factor(ops) -> tuple[int, int, str]:
             case PIOperatorKind.Jz:
                 weights.append(f"(m + {spin_index})")
             case PIOperatorKind.Jp:
-                weights.append(f"sqrtf((jpm + 1 - {spin_index}) * (jmm + {spin_index}))")
+                weights.append(f"sqrt((jpm + 1 - {spin_index}) * (jmm + {spin_index}))")
                 spin_index -= 1
             case PIOperatorKind.Jm:
-                weights.append(f"sqrtf((jmm + 1 + {spin_index}) * (jpm - {spin_index}))")
+                weights.append(f"sqrt((jmm + 1 + {spin_index}) * (jpm - {spin_index}))")
                 spin_index += 1
             case PIOperatorKind.A:
-                weights.append(f"sqrtf(a + {boson_index})")
+                weights.append(f"sqrt(a + {boson_index})")
                 boson_index -= 1
             case PIOperatorKind.Ad:
-                weights.append(f"sqrtf(a + 1 + {boson_index})")
+                weights.append(f"sqrt(a + 1 + {boson_index})")
                 boson_index += 1
             case PIOperatorKind.Ap:
                 weights.append(f"state->alpha")
             case PIOperatorKind.As:
-                weights.append(f"conjf(state->alpha)")
+                weights.append(f"conj(state->alpha)")
 
     return spin_index, boson_index, " * ".join(weights)
 
@@ -44,8 +44,8 @@ def generate_hamiltonian_term(terms):
     # function definition and terms needed for z,± basis, and photon-energy term (always included)
     string_builder += (
         "void hamiltonian_term(WaveVector dest, WaveVector source, struct TrajectoryState *state, int64 n, int64 a) {\n"
-        "\tcomplex float coeff = I * state->time_step * source[n][a];\n"
-        "\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
+        "\tcomplex double coeff = I * state->time_step * source[n][a];\n"
+        "\tdouble m = 0.5f * (NumberOfEmitters - 2*n);\n"
         "\tint64 jpm = state->row1 - n;\n"
         "\tint64 jmm = n - state->row2;\n"
         "\tsize_t tindex = (size_t)(TsLength * (state->time - config.StartTime) / (config.EndTime - config.StartTime));\n"
@@ -68,7 +68,7 @@ def generate_hamiltonian_term(terms):
             tf_string = f"tfunc[{tid}][tindex]"
             tid += 1
 
-        string_builder += f"\t{cond}dest[n + {spin_index}][a + {boson_index}] -= coeff * ({coeff.real}f + I*{coeff.imag}f) * {factor} * {tf_string};\n"
+        string_builder += f"\t{cond}dest[n + {spin_index}][a + {boson_index}] -= coeff * ({coeff.real} + I*{coeff.imag}) * {factor} * {tf_string};\n"
 
     string_builder += "}\n\n" # terminate function
     return string_builder, max_spin_index, max_boson_index, tfuncs
@@ -80,10 +80,10 @@ def generate_expectation_values(expect) -> str:
 
     # function definition, loop over states and terms needed for z,± basis
     string_builder += (
-        "void compute_expectation_values(WaveVector wave, struct TrajectoryState *state, complex float *expect) {\n"
+        "void compute_expectation_values(WaveVector wave, struct TrajectoryState *state, complex double *expect) {\n"
         "\tfor (int64 n = state->rowb; n <= state->rowa; ++n) {\n"
         "\t\tfor (int64 a = state->mina; a <= state->maxa; ++a) {\n"
-        "\t\t\tfloat m = 0.5f * (NumberOfEmitters - 2*n);\n"
+        "\t\t\tdouble m = 0.5f * (NumberOfEmitters - 2*n);\n"
         "\t\t\tint64 jpm = state->row1 - n;\n"
         "\t\t\tint64 jmm = n - state->row2;\n"
     )      
@@ -99,7 +99,7 @@ def generate_expectation_values(expect) -> str:
                 f"(n + {spin_index}) " + (">= state->rowb" if spin_index < 0 else "<= state->rowa"),
                 f"(a + {boson_index}) " + (">= 0" if boson_index < 0 else "< CavityTruncation"),
             ])
-            string_builder += f"\t\t\tif ({cond}) expect[{i}] += ({coeff.real}f + I*{coeff.imag}f) * conjf(wave[n + {spin_index}][a + {boson_index}]) * wave[n][a] * {factor};\n"
+            string_builder += f"\t\t\tif ({cond}) expect[{i}] += ({coeff.real} + I*{coeff.imag}) * conj(wave[n + {spin_index}][a + {boson_index}]) * wave[n][a] * {factor};\n"
 
     string_builder += "\t\t}\n\t}\n}\n\n"
     return string_builder

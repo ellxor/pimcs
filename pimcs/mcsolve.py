@@ -20,15 +20,15 @@ class MCSolver:
         self.tfuncs = np.concatenate(tfuncs) if len(tfuncs) > 0 else np.zeros(0)
 
     def __call__(self):
-        coeffs = np.ascontiguousarray(self.psi0.coeffs, dtype = np.complex64)
-        tfuncs = np.ascontiguousarray(self.tfuncs, dtype = np.complex64)
+        coeffs = np.ascontiguousarray(self.psi0.coeffs, dtype = np.complex128)
+        tfuncs = np.ascontiguousarray(self.tfuncs, dtype = np.complex128)
         lib = ctypes.CDLL(self.libpath)
 
         lib.run_trajectories(
-            ctypes.c_float(self.psi0.j),
+            ctypes.c_double(self.psi0.j),
             ctypes.c_uint64(self.id),
-            coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
-            tfuncs.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+            coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
+            tfuncs.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
         ) 
 
 
@@ -65,8 +65,8 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
         boson_dim = 1 # must have at least one, even just for free spins
 
     if enable_displacement:
-        if boson_dim > 6:
-            raise ValueError(f"Displacement should use a small photon truncation:\n\trecommended: 4\n\trequired: <= 6")
+        if boson_dim > 20:
+            raise ValueError(f"Displacement should use a small photon truncation!")
         if system.cavity_absorption != 0 or system.cavity_emission != 0:
             raise ValueError(f"Displacement does not yet support these decay channels")
 
@@ -95,7 +95,7 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     else:
         solver()
 
-    expect = np.zeros((len(e_ops), len(tlist)), dtype = np.complex64)
+    expect = np.zeros((len(e_ops), len(tlist)), dtype = np.complex128)
     boson_density = np.zeros((boson_dim, len(tlist)))
     spin_density = np.zeros((spin_dim + 1, len(tlist)))
  

@@ -4,7 +4,7 @@ from typing import Union
 from collections import defaultdict
 from collections.abc import Callable
 from enum import Enum, auto
-from numpy import complex64, isclose
+from numpy import complex128, isclose
 
 
 class PIOperatorKind(Enum):
@@ -102,7 +102,7 @@ class TimeDependent(PIExpression):
     conj: bool
 
 def coeff(value) -> Leaf:
-    return Leaf(complex64(value), None)
+    return Leaf(complex128(value), None)
 
 PIQobj = Union[Leaf, BinOp]
 
