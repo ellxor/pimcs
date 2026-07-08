@@ -1,8 +1,6 @@
 import numpy as np
 import ctypes, math
 
-from multiprocessing import Process
-
 from .dicke import Dicke, DickeState
 from .operators import validate_dimension
 from . import c_gen as c
@@ -13,12 +11,13 @@ class MCSolveResult:
         self.expect = expect
 
 class MCSolver:
-    def __init__(self, libpath, id, psi0, tfuncs, correlation_time: float):
+    def __init__(self, libpath, id, psi0, tfuncs, correlation_time: float, output_shape: tuple[int,int,int]):
         self.libpath = libpath
         self.psi0 = psi0
         self.id = id
         self.tfuncs = np.concatenate(tfuncs) if len(tfuncs) > 0 else np.zeros(0)
         self.correlation_time = correlation_time if correlation_time is not None else -1
+        self.output = np.zeros(output_shape, dtype = np.complex128)
 
     def __call__(self):
         coeffs = np.ascontiguousarray(self.psi0.coeffs, dtype = np.complex128)
@@ -31,15 +30,9 @@ class MCSolver:
             coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
             tfuncs.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
 	    ctypes.c_double(self.correlation_time),
+	    self.output.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
         ) 
 
-
-def running_in_notebook():
-    try:
-        from IPython import get_ipython
-        return get_ipython() is not None
-    except Exception:
-        return False
 
 
 def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0, correlation_time: int = None,
@@ -85,32 +78,16 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     with open("pimcs/c_backend/tmpconfig.h", 'w') as handle:
         handle.write(config)
 
-    print("Building optimized executable...")
-    libpath, hash_id = c.build_executable()
-    solver = MCSolver(libpath, hash_id, psi0, tfuncs, correlation_time)
-
-    print("Running trajectories...")
-    if running_in_notebook():
-        thread = Process(target = solver)
-        thread.start()
-        thread.join()
-    else:
-        solver()
-
-    expect = np.zeros((len(e_ops), len(tlist)), dtype = np.complex128)
-    boson_density = np.zeros((boson_dim, len(tlist)))
-    spin_density = np.zeros((spin_dim + 1, len(tlist)))
- 
     if correlation_time is not None:
         ntraj *= 4
 
-    for t in range(ntraj):
-        t, *data = np.loadtxt(f"trajectory-{hash_id:x}-{t+1}.txt").T
+    print("Building optimized executable...")
+    libpath, hash_id = c.build_executable()
+    solver = MCSolver(libpath, hash_id, psi0, tfuncs, correlation_time, ( ntraj, len(e_ops), len(tlist) ))
+    solver()
 
-        for i in range(len(e_ops)):
-            complex_data = data[2*i] + data[2*i+1] * 1j
-            expect[i] += np.interp(tlist, t, complex_data)
+    expect = np.sum(solver.output, axis = 0) / ntraj
+    expect = [ (e.real if op.is_herm() and correlation_time is None else e) for e, op in zip(expect, e_ops) ]
 
-    expect = [ (e.real if op.is_herm() and correlation_time is None else e) / ntraj for e, op in zip(expect, e_ops) ]
     return MCSolveResult(expect)
 

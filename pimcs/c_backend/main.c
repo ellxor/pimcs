@@ -450,7 +450,7 @@ thread_local int64 simulation_index;
 complex double *initial_state;
 double initial_j_sector;
 uint64_t prefix;
-
+complex double (*output_matrix)[ExpectationOps][OutputCount];
 
 struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, double start_time, double end_time, bool output) {
 	static thread_local struct WaveVectorAllocation wave_alloc;
@@ -493,29 +493,22 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, doub
 	double f_factor = precompute_f_factor(state.row1, state.row2);
 	double g_factor = precompute_g_factor(state.row1, state.row2);
 
-	double tick_size = (end_time - start_time) / OutputCount;
+	int64 step = 0;
+	double tick_size = (end_time - start_time) / (OutputCount - 1);
 	double next_write = 0; 
 
-	char filename[100];
-	sprintf(filename, "trajectory-%llx-%lld.txt", prefix, simulation_index);
-
-	FILE *log = output ? fopen(filename, "wb") : nullptr;
-	assert(output == (log != nullptr) && "failed to open file to save trajectory");
-
-	while (state.time < config.EndTime) {
-		if (log && state.time + state.time_step >= next_write) {
+	while (state.time <= config.EndTime) {
+		if (output && state.time == next_write) {
 			complex double expectation[ExpectationOps] = {0};
 			compute_expectation_values(wave, &state, expectation);
 
-			fprintf(log, "%f", state.time);
-
 			for (int64 op = 0; op < ExpectationOps; ++op) {
 				expectation[op] *= state.molmer_factor;
-				fprintf(log, "\t%g\t%g", creal(expectation[op]), cimag(expectation[op]));
+				output_matrix[simulation_index - 1][op][step] = expectation[op];
 			}
 
-			fprintf(log, "\n");
  			next_write += tick_size;
+			step += 1;
  		}
 
 		double jump_table[JUMP_COUNT] = {0};
@@ -581,10 +574,14 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, doub
 		for (int64 i = 0; i < JUMP_COUNT; ++i) max_factor = fmax(max_factor, jump_table[i]);
 
 		state.time_step = config.JumpTolerance / max_factor;
-		state.time += state.time_step;
+
+		if (state.time + state.time_step >= next_write) {
+			state.time_step = next_write - state.time;
+		}
 
 		// scale jump probabilities by dt
 		for (int64 i = 0; i < JUMP_COUNT; ++i) jump_table[i] *= state.time_step;
+		state.time += state.time_step;
 
 		int64 choice = select_random_jump(jump_table);
 		int64 row1_copy = state.row1;
@@ -699,7 +696,6 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, doub
 		if (state.maxa >= CavityTruncation) state.maxa = CavityTruncation - 1;
 	}
 
-   	if (log) fclose(log);
 	return state;
 }
 
@@ -785,12 +781,15 @@ void *thread_worker() {
 }
 
 
-void run_trajectories(uint64_t hash_id, double j_sector, complex double *inital_state_data, complex double (*__tfunc)[TsLength], double _correlation_time) {
+void run_trajectories(uint64_t hash_id, double j_sector, complex double *inital_state_data, complex double (*__tfunc)[TsLength],
+                      double _correlation_time, complex double (*_output_matrix)[ExpectationOps][OutputCount])
+{
 	thread_pool = config.TrajectoryCount;
 	threads_complete = 0;
 	thread_id = 0;
 	total_millis = 0;
 	tfunc = __tfunc;
+	output_matrix = _output_matrix;
 
 	correlation_time = _correlation_time;
 	correlation = correlation_time >= 0;
