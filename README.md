@@ -25,7 +25,9 @@ Check out the [example notebook](example_notebook.ipynb) as a quick reference.
 - [x] Add support for time-dependent Hamiltonians
 - [x] Auto-detection of Hermitian observables: give real arrays instead of always complex valued
 - [x] Add displaced trajectory code (for any arbitrary H)
-- [ ] Add support for two-time correlations to Python frontend
+- [x] Add support for two-time correlations to Python frontend
+- [ ] Replace trajectory files with passing data directly in memory to Python.
+- [ ] Add example for two-time correaltions to notebook.
 - [ ] Add Cython (or Mojo) backend and code generation
 - [ ] Promote operators to be Qobj operators for better QuTiP integration (using opaque data field)
 - [ ] Add support for SU(3) PI trajectories
