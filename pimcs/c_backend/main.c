@@ -704,7 +704,7 @@ atomic(int) total_millis;
 
 void *thread_worker() {
 	int64 id = atomic_fetch_add(&thread_id, 1);
-	set_random_seed(id);
+	set_random_seed(id | prefix);
 
 	int64 next;
 
