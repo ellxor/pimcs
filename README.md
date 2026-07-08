@@ -24,11 +24,11 @@ Check out the [example notebook](example_notebook.ipynb) as a quick reference.
 - [x] Support arbitrary Hamiltonians
 - [x] Add support for time-dependent Hamiltonians
 - [x] Auto-detection of Hermitian observables: give real arrays instead of always complex valued
-- [x] Add displaced trajectory code (derive EOMs for arbitrary H)
+- [x] Add displaced trajectory code (for any arbitrary H)
 - [ ] Add support for two-time correlations to Python frontend
-- [ ] Implement displaced trajectories for higher-than-quadratic Hamiltonians
-- [ ] Add Cython backend and code generation
+- [ ] Add Cython (or Mojo) backend and code generation
 - [ ] Promote operators to be Qobj operators for better QuTiP integration (using opaque data field)
+- [ ] Add support for SU(3) PI trajectories
 - [ ] Add support for multiple spin spaces
 - [ ] Add support for multiple boson modes
 - [ ] Explore idea for displaced Holstein-Primakoff
