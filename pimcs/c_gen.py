@@ -75,6 +75,29 @@ def generate_hamiltonian_term(terms):
 
 
 
+def generate_collapse_term(op) -> str:
+    string_builder = (
+        "void collapse_operator(WaveVector phi, WaveVector psi, struct TrajectoryState *state, complex double factor, int64 n, int64 a) {\n"
+        "\tcomplex double coeff = factor * psi[n][a];\n"
+        "\tdouble m = 0.5f * (NumberOfEmitters - 2*n);\n"
+        "\tint64 jpm = state->row1 - n;\n"
+        "\tint64 jmm = n - state->row2;\n\n"
+    )
+
+    if op is not None:
+        terms = to_sum_of_products(op, 0)
+
+        for coeff, spins, bosons, tfactor in terms:
+            assert len(tfactor) == 1, "observables are not currently time-dependent"
+            spin_index, boson_index, factor = ops_to_factor(spins + bosons)
+            cond = f"if (a + {boson_index} < CavityTruncation) " if boson_index > 0 else ""
+
+            string_builder += f"\t{cond}phi[n + {spin_index}][a + {boson_index}] += coeff * ({coeff.real} + I*{coeff.imag}) * {factor};\n"
+
+    string_builder += "}\n\n" # terminate function
+    return string_builder
+
+
 def generate_expectation_values(expect) -> str:
     string_builder = ""
 
@@ -105,7 +128,7 @@ def generate_expectation_values(expect) -> str:
     return string_builder
 
 
-def generate_backend_code(H, expect, tlist, displace: bool):
+def generate_backend_code(H, expect, tlist, displace: bool, two_time_correlation: bool):
     if displace:
         H = H.displace()
         expect = [op.displace() for op in expect]
@@ -113,8 +136,17 @@ def generate_backend_code(H, expect, tlist, displace: bool):
     collected = to_sum_of_products(H, tlist)
 
     string_builder, max_spin_index, max_boson_index, tfuncs = generate_hamiltonian_term(collected)
-    string_builder += generate_expectation_values(expect)
 
+    if two_time_correlation:
+        if len(expect) != 2:
+            raise ValueError("for two-time correlations, expect must contain exactly two operators: [A(t2), B(t1)]")
+
+        string_builder += generate_collapse_term(expect[1])
+        expect = [expect[0]]
+    else:
+        string_builder += generate_collapse_term(None)
+
+    string_builder += generate_expectation_values(expect)
     return string_builder, max_spin_index, max_boson_index, tfuncs
 
 

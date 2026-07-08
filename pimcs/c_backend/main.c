@@ -88,12 +88,17 @@ struct TrajectoryState {
  	int64 rowa, rowb; // truncated diagram (with tolerance to ignore low norm states)
 	int64 mina, maxa; // dynamical scaling of photon mode
 
+	// wavefunction
 	double time;
 	double time_step;
 	WaveVector *wave;
 
+	// displacement transform parameters
 	complex double alpha;
 	complex double annihilation;
+
+	// two time correlation parameters
+	complex double molmer_factor;
 };
 
 
@@ -419,7 +424,7 @@ void jump_photon_gain(WaveVector wave, struct TrajectoryState *state) {
 }
 
 
-double normalize_state(WaveVector wave, struct TrajectoryState *state, int64 last_choice) {
+double normalize_state(WaveVector wave, struct TrajectoryState *state) {
 	double norm = 0;
 
 	for (int64 n = state->rowb; n <= state->rowa; ++n) {
@@ -447,7 +452,7 @@ double initial_j_sector;
 uint64_t prefix;
 
 
-struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
+struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, double start_time, double end_time, bool output) {
 	static thread_local struct WaveVectorAllocation wave_alloc;
 
 	int64 row1 = (int)(NumberOfEmitters/2.0f + initial_j_sector);
@@ -463,9 +468,14 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 		.mina = 0,
 		.maxa = CavityTruncation - 1,
 
-		.time = config.StartTime,
+		.time = start_time,
 		.time_step = 0,
 		.wave = &wave_alloc.wave,
+
+		.alpha = 0,
+		.annihilation = 0,
+
+		.molmer_factor = 1,
 	};
 
 	if (initial) memcpy(&state, initial, sizeof state);
@@ -483,23 +493,24 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 	double f_factor = precompute_f_factor(state.row1, state.row2);
 	double g_factor = precompute_g_factor(state.row1, state.row2);
 
-	double tick_size = (config.EndTime - config.StartTime) / OutputCount;
+	double tick_size = (end_time - start_time) / OutputCount;
 	double next_write = 0; 
 
 	char filename[100];
 	sprintf(filename, "trajectory-%llx-%lld.txt", prefix, simulation_index);
 
-	FILE *log = fopen(filename, "wb");
-	assert(log && "failed to open file to save trajectory");
+	FILE *log = output ? fopen(filename, "wb") : nullptr;
+	assert(output == (log != nullptr) && "failed to open file to save trajectory");
 
 	while (state.time < config.EndTime) {
- 		if (state.time + state.time_step >= next_write) {
+		if (log && state.time + state.time_step >= next_write) {
 			complex double expectation[ExpectationOps] = {0};
 			compute_expectation_values(wave, &state, expectation);
 
 			fprintf(log, "%f", state.time);
 
 			for (int64 op = 0; op < ExpectationOps; ++op) {
+				expectation[op] *= state.molmer_factor;
 				fprintf(log, "\t%g\t%g", creal(expectation[op]), cimag(expectation[op]));
 			}
 
@@ -627,7 +638,7 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 		if (state.maxa >= CavityTruncation) state.maxa = CavityTruncation - 1;
 
 		// normalize the wavefunction
-		normalize_state(wave, &state, choice);
+		normalize_state(wave, &state);
 
 		if (UseDisplacement) {
 			complex double annihilation = 0;
@@ -692,6 +703,44 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial) {
 	return state;
 }
 
+// Two time correlation as described by Molmer et al.
+// this method is used to avoid inner products between states displaced by different amounts
+
+double correlation_time;
+
+void two_time_correlation() {
+	static thread_local struct WaveVectorAllocation second_wave;
+	struct TrajectoryState psi = simulate_trajectory(nullptr, 0, correlation_time, false);
+
+	// split wave function into 4 states, and then evolve trajectories from there...
+	// in this case hat(a) = hat(b) + alpha
+
+	complex double factor = 1;
+
+	for (int64 split = 0; split < 4; ++split) { // cycle through 1, i, -1, -i
+		struct TrajectoryState phi = psi;
+		phi.wave = &second_wave.wave;
+
+		memcpy(phi.wave, psi.wave, sizeof(WaveVector));
+
+		for (int64 n = phi.rowb; n <= phi.rowa; ++n) {
+			for (int64 a = phi.mina; a <= phi.maxa; ++a) {
+				void collapse_operator(WaveVector phi, WaveVector psi, struct TrajectoryState *state, complex double factor, int64 n, int64 a);
+				collapse_operator(*phi.wave, *psi.wave, &phi, factor, n, a);
+			}
+		}
+
+		double norm = normalize_state(*phi.wave, &phi);
+		phi.molmer_factor = conjf(factor) * norm;
+		phi.time = config.StartTime;
+
+		simulation_index += 1;
+		simulate_trajectory(&phi, config.StartTime, config.EndTime, true);
+
+		factor *= I;
+	}
+}
+
 
 // Multithreading code.
 //
@@ -702,6 +751,8 @@ atomic(int) total_millis;
 
 #define CLEAR_LINE "\r\x1b[2K"
 
+bool correlation = 0;
+
 void *thread_worker() {
 	int64 id = atomic_fetch_add(&thread_id, 1);
 	set_random_seed(id | prefix);
@@ -710,9 +761,15 @@ void *thread_worker() {
 
 	while ((next = atomic_fetch_add(&thread_pool, -1)) > 0) {
 		double begin = get_time_from_os();
-		simulation_index = next;
 
-		simulate_trajectory(nullptr);
+		if (correlation) {
+			simulation_index = 4 * (next - 1);
+			two_time_correlation();
+		} else {
+			simulation_index = next;
+			simulate_trajectory(nullptr, config.StartTime, config.EndTime, true);
+		}
+
 		double end = get_time_from_os();
 
 		int64 millis = (int)(1000.0f * (end - begin));
@@ -728,12 +785,15 @@ void *thread_worker() {
 }
 
 
-void run_trajectories(uint64_t hash_id, double j_sector, complex double *inital_state_data, complex double (*__tfunc)[TsLength]) {
+void run_trajectories(uint64_t hash_id, double j_sector, complex double *inital_state_data, complex double (*__tfunc)[TsLength], double _correlation_time) {
 	thread_pool = config.TrajectoryCount;
 	threads_complete = 0;
 	thread_id = 0;
 	total_millis = 0;
 	tfunc = __tfunc;
+
+	correlation_time = _correlation_time;
+	correlation = correlation_time >= 0;
 
 	initial_state = inital_state_data;
 	initial_j_sector = j_sector;

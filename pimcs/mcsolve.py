@@ -13,11 +13,12 @@ class MCSolveResult:
         self.expect = expect
 
 class MCSolver:
-    def __init__(self, libpath, id, psi0, tfuncs):
+    def __init__(self, libpath, id, psi0, tfuncs, correlation_time: float):
         self.libpath = libpath
         self.psi0 = psi0
         self.id = id
         self.tfuncs = np.concatenate(tfuncs) if len(tfuncs) > 0 else np.zeros(0)
+        self.correlation_time = correlation_time if correlation_time is not None else -1
 
     def __call__(self):
         coeffs = np.ascontiguousarray(self.psi0.coeffs, dtype = np.complex128)
@@ -29,6 +30,7 @@ class MCSolver:
             ctypes.c_uint64(self.id),
             coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
             tfuncs.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
+	    ctypes.c_double(self.correlation_time),
         ) 
 
 
@@ -40,7 +42,7 @@ def running_in_notebook():
         return False
 
 
-def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0,
+def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0, correlation_time: int = None,
             jtol: float = 0.05, stol: float = 1e-20, rkpoly: int = 4,
 	    enable_displacement: bool = False) -> MCSolveResult:
 
@@ -74,7 +76,7 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     tfunc_points = int((tlist[-1] - tlist[0]) / tfunc_dt)
     tfunc_tlist = np.linspace(tlist[0], tlist[-1], tfunc_points)
 
-    code, spin_width, boson_width, tfuncs = c.generate_backend_code(system.hamiltonian, e_ops, tfunc_tlist, displace = enable_displacement)
+    code, spin_width, boson_width, tfuncs = c.generate_backend_code(system.hamiltonian, e_ops, tfunc_tlist, displace = enable_displacement, two_time_correlation = correlation_time is not None)
     config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, jtol, stol, spin_width, boson_width, len(tlist), rkpoly, tfunc_points, enable_displacement)
 
     with open("pimcs/c_backend/tmp.h", 'w') as handle:
@@ -85,7 +87,7 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
 
     print("Building optimized executable...")
     libpath, hash_id = c.build_executable()
-    solver = MCSolver(libpath, hash_id, psi0, tfuncs)
+    solver = MCSolver(libpath, hash_id, psi0, tfuncs, correlation_time)
 
     print("Running trajectories...")
     if running_in_notebook():
@@ -99,6 +101,9 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     boson_density = np.zeros((boson_dim, len(tlist)))
     spin_density = np.zeros((spin_dim + 1, len(tlist)))
  
+    if correlation_time is not None:
+        ntraj *= 4
+
     for t in range(ntraj):
         t, *data = np.loadtxt(f"trajectory-{hash_id:x}-{t+1}.txt").T
 
@@ -106,6 +111,6 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
             complex_data = data[2*i] + data[2*i+1] * 1j
             expect[i] += np.interp(tlist, t, complex_data)
 
-    expect = [ (e.real if op.is_herm() else e) / ntraj for e, op in zip(expect, e_ops) ]
+    expect = [ (e.real if op.is_herm() and correlation_time is None else e) / ntraj for e, op in zip(expect, e_ops) ]
     return MCSolveResult(expect)
 
