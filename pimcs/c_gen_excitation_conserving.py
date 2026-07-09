@@ -188,11 +188,12 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
 
 
 def build_executable():
-    assert os.system("cc -c -std=c11 -pthread -fPIC -O3 -march=native -ffast-math pimcs/c_backend/main_excitation_conserving.c") == 0
-
     hash_id = random.randint(0, 2**64 - 1)
-    output = f"./main-{hash_id:x}.so"
+    hash_str = f"{hash_id:x}"
 
-    assert os.system(f"cc -fPIC -shared -o {output} main_excitation_conserving.o -lm -pthread") == 0
+    assert os.system(f"cc -c -o main-{hash_str}.o -std=c11 -pthread -fPIC -O3 -march=native -ffast-math pimcs/c_backend/main_excitation_conserving.c") == 0
+    output = f"./main-{hash_str}.so"
+
+    assert os.system(f"cc -fPIC -shared -o {output} main-{hash_str}.o -lm -pthread") == 0
     return output, hash_id
 
