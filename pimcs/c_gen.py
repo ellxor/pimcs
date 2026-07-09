@@ -103,12 +103,10 @@ def generate_expectation_values(expect) -> str:
 
     # function definition, loop over states and terms needed for z,± basis
     string_builder += (
-        "void compute_expectation_values(WaveVector wave, struct TrajectoryState *state, complex double *expect) {\n"
-        "\tfor (int64 n = state->rowb; n <= state->rowa; ++n) {\n"
-        "\t\tfor (int64 a = state->mina; a <= state->maxa; ++a) {\n"
-        "\t\t\tdouble m = 0.5f * (NumberOfEmitters - 2*n);\n"
-        "\t\t\tint64 jpm = state->row1 - n;\n"
-        "\t\t\tint64 jmm = n - state->row2;\n"
+        "void compute_expectation_values(WaveVector wave, struct TrajectoryState *state, complex double *expect, int64 n, int64 a) {\n"
+        "\tdouble m = 0.5f * (NumberOfEmitters - 2*n);\n"
+        "\tint64 jpm = state->row1 - n;\n"
+        "\tint64 jmm = n - state->row2;\n"
     )      
  
     for i, op in enumerate(expect):
@@ -122,9 +120,9 @@ def generate_expectation_values(expect) -> str:
                 f"(n + {spin_index}) " + (">= state->rowb" if spin_index < 0 else "<= state->rowa"),
                 f"(a + {boson_index}) " + (">= 0" if boson_index < 0 else "< CavityTruncation"),
             ])
-            string_builder += f"\t\t\tif ({cond}) expect[{i}] += ({coeff.real} + I*{coeff.imag}) * conj(wave[n + {spin_index}][a + {boson_index}]) * wave[n][a] * {factor};\n"
+            string_builder += f"\tif ({cond}) expect[{i}] += ({coeff.real} + I*{coeff.imag}) * conj(wave[n + {spin_index}][a + {boson_index}]) * wave[n][a] * {factor};\n"
 
-    string_builder += "\t\t}\n\t}\n}\n\n"
+    string_builder += "}\n\n"
     return string_builder
 
 

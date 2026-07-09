@@ -500,7 +500,12 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, doub
 	while (state.time <= config.EndTime) {
 		if (output && state.time == next_write) {
 			complex double expectation[ExpectationOps] = {0};
-			compute_expectation_values(wave, &state, expectation);
+
+			for (int64 n = state.rowb; n <= state.rowa; ++n) {
+				for (int64 a = state.mina; a <= state.maxa; ++a) {
+					compute_expectation_values(wave, &state, expectation, n, a);
+				}
+			}
 
 			for (int64 op = 0; op < ExpectationOps; ++op) {
 				expectation[op] *= state.molmer_factor;
