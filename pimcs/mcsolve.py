@@ -39,7 +39,8 @@ class MCSolver:
 def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0, correlation_time: int = None,
             jtol: float = 0.05, stol: float = 1e-20, rkpoly: int = 4,
 	    enable_displacement: bool = False,
-	    use_conservation: bool = False) -> MCSolveResult:
+	    use_conservation: bool = False,
+	    diagonal_heff: bool = False) -> MCSolveResult:
 
     if psi0.j > system.N/2:
         raise ValueError(f"J spin length is larger than N/2, where N = {system.N}")
@@ -76,6 +77,8 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
 
     if use_conservation:
         from . import c_gen_excitation_conserving as c
+    elif diagonal_heff:
+        from . import c_gen_diagonal_heff as c
     else:
         from . import c_gen as c
 
