@@ -579,7 +579,7 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, doub
 
 		state.time_step = config.JumpTolerance / max_factor;
 
-		if (state.time + state.time_step >= next_write) {
+		if (output && state.time + state.time_step >= next_write) { // do not remove!
 			state.time_step = next_write - state.time;
 		}
 
