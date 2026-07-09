@@ -7,8 +7,10 @@ from . import c_gen as c
 
 
 class MCSolveResult:
-    def __init__(self, expect):
+    def __init__(self, expect, trajectories):
         self.expect = expect
+        self.trajectories = trajectories
+
 
 class MCSolver:
     def __init__(self, libpath, id, psi0, tfuncs, correlation_time: float, output_shape: tuple[int,int,int]):
@@ -89,5 +91,5 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     expect = np.sum(solver.output, axis = 0) / ntraj
     expect = [ (e.real if op.is_herm() and correlation_time is None else e) for e, op in zip(expect, e_ops) ]
 
-    return MCSolveResult(expect)
+    return MCSolveResult(expect, solver.output)
 
