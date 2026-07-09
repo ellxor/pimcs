@@ -94,6 +94,7 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     print("Building optimized executable...")
     libpath, hash_id = c.build_executable()
     solver = MCSolver(libpath, hash_id, psi0, tfuncs, correlation_time, ( ntraj, len(e_ops), len(tlist) ))
+    print("Running solver...")
     solver()
 
     expect = np.sum(solver.output, axis = 0) / ntraj
