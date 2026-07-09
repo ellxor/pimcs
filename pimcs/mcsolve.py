@@ -3,7 +3,6 @@ import ctypes, math
 
 from .dicke import Dicke, DickeState
 from .operators import validate_dimension
-from . import c_gen as c
 
 
 class MCSolveResult:
@@ -39,13 +38,17 @@ class MCSolver:
 
 def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntraj: int = 0, ncpu: int = 0, correlation_time: int = None,
             jtol: float = 0.05, stol: float = 1e-20, rkpoly: int = 4,
-	    enable_displacement: bool = False) -> MCSolveResult:
+	    enable_displacement: bool = False,
+	    use_conservation: bool = False) -> MCSolveResult:
 
     if psi0.j > system.N/2:
         raise ValueError(f"J spin length is larger than N/2, where N = {system.N}")
 
     if not math.isclose(psi0.norm(), 1):
         raise ValueError(f"Initial wavefunction is not normalized, got norm of {psi0.norm()}")
+
+    if use_conservation and np.sum(psi0.coeffs != 0) != 1:
+        raise ValueError("State is not an eigenstate of excitations!")
 
     tlist = np.array(tlist)
     assert len(tlist) > 1
@@ -70,6 +73,11 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops = [], ntr
     tfunc_dt = 0.05 / system.N
     tfunc_points = int((tlist[-1] - tlist[0]) / tfunc_dt)
     tfunc_tlist = np.linspace(tlist[0], tlist[-1], tfunc_points)
+
+    if use_conservation:
+        from . import c_gen_excitation_conserving as c
+    else:
+        from . import c_gen as c
 
     code, spin_width, boson_width, tfuncs = c.generate_backend_code(system.hamiltonian, e_ops, tfunc_tlist, displace = enable_displacement, two_time_correlation = correlation_time is not None)
     config = c.generate_config(system, boson_dim, tlist, len(e_ops), ntraj, ncpu, jtol, stol, spin_width, boson_width, len(tlist), rkpoly, tfunc_points, enable_displacement)
