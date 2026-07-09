@@ -494,8 +494,7 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, doub
 	double g_factor = precompute_g_factor(state.row1, state.row2);
 
 	int64 step = 0;
-	double tick_size = (end_time - start_time) / (OutputCount - 1);
-	double next_write = 0; 
+	double next_write = state.time;
 
 	while (state.time <= config.EndTime) {
 		if (output && state.time == next_write) {
@@ -512,8 +511,8 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, doub
 				output_matrix[simulation_index - 1][op][step] = expectation[op];
 			}
 
- 			next_write += tick_size;
 			step += 1;
+			next_write = start_time + (end_time - start_time) * step / (OutputCount - 1);
  		}
 
 		double jump_table[JUMP_COUNT] = {0};
@@ -726,7 +725,6 @@ void two_time_correlation() {
 
 		for (int64 n = phi.rowb; n <= phi.rowa; ++n) {
 			for (int64 a = phi.mina; a <= phi.maxa; ++a) {
-				void collapse_operator(WaveVector phi, WaveVector psi, struct TrajectoryState *state, complex double factor, int64 n, int64 a);
 				collapse_operator(*phi.wave, *psi.wave, &phi, factor, n, a);
 			}
 		}
