@@ -27,6 +27,7 @@ Check out the [example notebook](example_notebook.ipynb) as a quick reference.
 - [x] Add displaced trajectory code (for any arbitrary H)
 - [x] Add support for two-time correlations to Python frontend
 - [x] Replace trajectory files with passing data directly in memory to Python.
+- [x] Add code for models that have extra U(1) symmetry (i.e. Tavis-Cummings, a†a + Jz is conserved)
 - [ ] Add example for two-time correaltions to notebook.
 - [ ] Add Cython (or Mojo) backend and code generation
 - [ ] Promote operators to be Qobj operators for better QuTiP integration (using opaque data field)
