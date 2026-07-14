@@ -1,4 +1,6 @@
-import ctypes, os, random
+import os
+import random
+
 from .dicke import Dicke
 from .operators import *
 
@@ -35,7 +37,6 @@ def ops_to_factor(ops) -> tuple[int, int, str]:
     return spin_index, boson_index, " * ".join(weights)
 
 
-
 def generate_hamiltonian_term(terms):
     max_spin_index = 0
     max_boson_index = 0
@@ -49,7 +50,7 @@ def generate_hamiltonian_term(terms):
         "\tint64 jpm = state->row1 - n;\n"
         "\tint64 jmm = n - state->row2;\n"
         "\tsize_t tindex = (size_t)(TsLength * (state->time - config.StartTime) / (config.EndTime - config.StartTime));\n"
-	"\tif (tindex >= TsLength) tindex = TsLength - 1;\n\n"
+        "\tif (tindex >= TsLength) tindex = TsLength - 1;\n\n"
     )
 
     tfuncs = []
@@ -69,9 +70,8 @@ def generate_hamiltonian_term(terms):
 
         string_builder += f"\tdest[n + {spin_index}] -= coeff * ({coeff.real} + I*{coeff.imag}) * {factor} * {tf_string};\n"
 
-    string_builder += "}\n\n" # terminate function
+    string_builder += "}\n\n"  # terminate function
     return string_builder, max_spin_index, max_boson_index, tfuncs
-
 
 
 def generate_collapse_term(op) -> str:
@@ -92,7 +92,7 @@ def generate_collapse_term(op) -> str:
 
             string_builder += f"\tphi[n + {spin_index}] += coeff * ({coeff.real} + I*{coeff.imag}) * {factor};\n"
 
-    string_builder += "}\n\n" # terminate function
+    string_builder += "}\n\n"  # terminate function
     return string_builder
 
 
@@ -105,8 +105,8 @@ def generate_expectation_values(expect) -> str:
         "\tdouble m = 0.5f * (NumberOfEmitters - 2*n);\n"
         "\tint64 jpm = state->row1 - n;\n"
         "\tint64 jmm = n - state->row2;\n"
-    )      
- 
+    )
+
     for i, op in enumerate(expect):
         collected = to_sum_of_products(op, 0)
 
@@ -114,11 +114,10 @@ def generate_expectation_values(expect) -> str:
             assert len(tfactor) == 1, "observables are not currently time-dependent"
 
             spin_index, boson_index, factor = ops_to_factor(spin + boson)
-            cond = " && ".join([
-                f"(n + {spin_index}) " + (">= state->rowb" if spin_index < 0 else "<= state->rowa"),
-                f"(a + {boson_index}) " + (">= 0" if boson_index < 0 else "< CavityTruncation"),
-            ])
-            string_builder += f"\texpect[{i}] += ({coeff.real} + I*{coeff.imag}) * conj(wave[n + {spin_index}]) * wave[n] * {factor};\n"
+            print(spin_index, boson_index, factor)
+
+            if boson_index == 0:  # TODO: check for suitable warnings if expectation is always zero for an operator.
+                string_builder += f"\texpect[{i}] += ({coeff.real} + I*{coeff.imag}) * conj(wave[n + {spin_index}]) * wave[n] * {factor};\n"
 
     string_builder += "}\n\n"
     return string_builder
@@ -147,7 +146,8 @@ def generate_backend_code(H, expect, tlist, displace: bool, two_time_correlation
 
 
 def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int, ntraj: int,
-                    ncpu: int, jtol: float, stol: float, spin_width: int, boson_width: int, output_count: int, rkpoly: int, ts: int, displace: bool) -> str:
+                    ncpu: int, jtol: float, stol: float, spin_width: int, boson_width: int, output_count: int,
+                    rkpoly: int, ts: int, displace: bool) -> str:
     string_builder = ""
 
     # constant integral values used for array lengths
@@ -186,14 +186,13 @@ def generate_config(system: Dicke, boson_dim: int, tspan: [float], e_count: int,
     return string_builder
 
 
-
 def build_executable():
-    hash_id = random.randint(0, 2**64 - 1)
+    hash_id = random.randint(0, 2 ** 64 - 1)
     hash_str = f"{hash_id:x}"
 
-    assert os.system(f"cc -c -o main-{hash_str}.o -std=c11 -pthread -fPIC -O3 -march=native -ffast-math pimcs/c_backend/main_excitation_conserving.c") == 0
+    assert os.system(
+        f"cc -c -o main-{hash_str}.o -std=c11 -pthread -fPIC -O3 -march=native -ffast-math pimcs/c_backend/main_excitation_conserving.c") == 0
     output = f"./main-{hash_str}.so"
 
     assert os.system(f"cc -fPIC -shared -o {output} main-{hash_str}.o -lm -pthread") == 0
     return output, hash_id
-

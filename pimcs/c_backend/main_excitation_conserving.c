@@ -95,8 +95,9 @@ struct TrajectoryState {
 	// conserved number of excitations (by Heff)
 	int64 excitations;
 
-	// two time correlation parameters
-	complex double molmer_factor;
+	double e_factor;
+	double f_factor;
+	double g_factor;
 };
 
 
@@ -348,11 +349,15 @@ void jump_photon_gain(WaveVector wave, struct TrajectoryState *state) {
 }
 
 
-double normalize_state(WaveVector wave, struct TrajectoryState *state) {
+double normalize_state(WaveVector wave, struct TrajectoryState *state, struct TrajectoryState *auxiliary) {
 	double norm = 0;
 
 	for (int64 n = state->rowb; n <= state->rowa; ++n) {
 		norm += cnorm(wave[n]);
+	}
+
+    if (auxiliary) for (int64 n = state->rowb; n <= state->rowa; ++n) {
+		norm += cnorm((*auxiliary->wave)[n]);
 	}
 
 	assert(norm && "Invalid state: has norm of zero");
@@ -362,7 +367,116 @@ double normalize_state(WaveVector wave, struct TrajectoryState *state) {
 		wave[n] *= scale;
 	}
 
+	if (auxiliary) for (int64 n = state->rowb; n <= state->rowa; ++n) {
+		(*auxiliary->wave)[n] *= scale;
+	}
+
 	return norm;
+}
+
+
+void calculate_jump_probabilities(WaveVector wave, struct TrajectoryState *state, double jump_table[static JUMP_COUNT]) {
+
+	for (int64 n = state->rowb; n <= state->rowa; ++n) {
+		int64 a = state->excitations - (NumberOfEmitters - n);
+		if (a < 0) continue;
+
+		double norm = cnorm(wave[n]);
+
+		int64 jpm = state->row1 - n; // J+M
+		int64 jmm = n - state->row2; // J-M
+		double m = 0.5f * (NumberOfEmitters - 2*n);
+
+		jump_table[JUMP_SPIN_DEPHASING_SAME_J]  += norm * m * m;
+		jump_table[JUMP_SPIN_DEPHASING_LOWER_J] += norm * jmm*jpm;
+		jump_table[JUMP_SPIN_DEPHASING_UPPER_J] += norm * (jmm + 1)*(jpm + 1);
+
+		jump_table[JUMP_SPIN_LOSS_SAME_J]  += norm * (jmm + 1)*(jpm);
+		jump_table[JUMP_SPIN_LOSS_LOWER_J] += norm * (jpm - 1)*(jpm);
+		jump_table[JUMP_SPIN_LOSS_UPPER_J] += norm * (jmm + 1)*(jmm + 2);
+
+		jump_table[JUMP_SPIN_GAIN_SAME_J]  += norm * (jpm + 1)*(jmm);
+		jump_table[JUMP_SPIN_GAIN_LOWER_J] += norm * (jmm - 1)*(jmm);
+		jump_table[JUMP_SPIN_GAIN_UPPER_J] += norm * (jpm + 1)*(jpm + 2);
+
+		jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_SAME_J]  += norm * (jmm + 1)*(jpm) * (a + 1);
+		jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_LOWER_J] += norm * (jpm - 1)*(jpm) * (a + 1);
+		jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_UPPER_J] += norm * (jmm + 1)*(jmm + 2) * (a + 1);
+
+		jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_SAME_J]  += norm * (jpm + 1)*(jmm) * a;
+		jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_LOWER_J] += norm * (jmm - 1)*(jmm) * a;
+		jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_UPPER_J] += norm * (jpm + 1)*(jpm + 2) * a;
+
+		jump_table[JUMP_PHOTON_LOSS] += norm * a;
+	}
+
+	// scale jump probabilities by loss rates
+	jump_table[JUMP_COLLECTIVE_SPIN_DEPHASING] = jump_table[JUMP_SPIN_DEPHASING_SAME_J] * config.CollectiveDephasingRate;
+	jump_table[JUMP_COLLECTIVE_SPIN_LOSS] = jump_table[JUMP_SPIN_LOSS_SAME_J] * config.CollectiveEmissionRate;
+	jump_table[JUMP_COLLECTIVE_SPIN_GAIN] = jump_table[JUMP_SPIN_GAIN_SAME_J] * config.CollectivePumpingRate;
+	jump_table[JUMP_SPIN_DEPHASING_SAME_J]  *= 4*config.DephasingRate * state->e_factor;
+	jump_table[JUMP_SPIN_DEPHASING_LOWER_J] *= 4*config.DephasingRate * state->f_factor;
+	jump_table[JUMP_SPIN_DEPHASING_UPPER_J] *= 4*config.DephasingRate * state->g_factor;
+	jump_table[JUMP_SPIN_LOSS_SAME_J]  *= config.EmissionRate * state->e_factor;
+	jump_table[JUMP_SPIN_LOSS_LOWER_J] *= config.EmissionRate * state->f_factor;
+	jump_table[JUMP_SPIN_LOSS_UPPER_J] *= config.EmissionRate * state->g_factor;
+	jump_table[JUMP_SPIN_GAIN_SAME_J]  *= config.PumpingRate * state->e_factor;
+	jump_table[JUMP_SPIN_GAIN_LOWER_J] *= config.PumpingRate * state->f_factor;
+	jump_table[JUMP_SPIN_GAIN_UPPER_J] *= config.PumpingRate * state->g_factor;
+	jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_SAME_J]  *= config.CavityEmissionRate * state->e_factor;
+	jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_LOWER_J] *= config.CavityEmissionRate * state->f_factor;
+	jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_UPPER_J] *= config.CavityEmissionRate * state->g_factor;
+	jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_SAME_J]  *= config.CavityAbsorptionRate * state->e_factor;
+	jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_LOWER_J] *= config.CavityAbsorptionRate * state->f_factor;
+	jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_UPPER_J] *= config.CavityAbsorptionRate * state->g_factor;
+	jump_table[JUMP_PHOTON_LOSS] *= config.PhotonLossRate;
+}
+
+
+void monte_carlo_step(struct TrajectoryState *state, int64 choice) {
+    complex double *wave = *state->wave;
+    int64 row1_copy = state->row1;
+
+    switch (choice) {
+        case JUMP_COLLECTIVE_SPIN_DEPHASING: jump_spin_dephasing_same_j(wave, state); break;
+        case JUMP_COLLECTIVE_SPIN_LOSS: jump_spin_loss_same_j(wave, state); break;
+        case JUMP_COLLECTIVE_SPIN_GAIN: jump_spin_gain_same_j(wave, state); break;
+
+        case JUMP_SPIN_DEPHASING_SAME_J:  jump_spin_dephasing_same_j(wave, state);  break;
+        case JUMP_SPIN_DEPHASING_LOWER_J: jump_spin_dephasing_lower_j(wave, state); break;
+        case JUMP_SPIN_DEPHASING_UPPER_J: jump_spin_dephasing_upper_j(wave, state); break;
+
+        case JUMP_SPIN_LOSS_SAME_J:  jump_spin_loss_same_j(wave, state);  break;
+        case JUMP_SPIN_LOSS_LOWER_J: jump_spin_loss_lower_j(wave, state); break;
+        case JUMP_SPIN_LOSS_UPPER_J: jump_spin_loss_upper_j(wave, state); break;
+
+        case JUMP_SPIN_GAIN_SAME_J:  jump_spin_gain_same_j(wave, state);  break;
+        case JUMP_SPIN_GAIN_LOWER_J: jump_spin_gain_lower_j(wave, state); break;
+        case JUMP_SPIN_GAIN_UPPER_J: jump_spin_gain_upper_j(wave, state); break;
+
+        case JUMP_SPIN_LOSS_PHOTON_GAIN_SAME_J:  jump_photon_gain(wave, state); jump_spin_loss_same_j(wave, state);  break;
+        case JUMP_SPIN_LOSS_PHOTON_GAIN_LOWER_J: jump_photon_gain(wave, state); jump_spin_loss_lower_j(wave, state); break;
+        case JUMP_SPIN_LOSS_PHOTON_GAIN_UPPER_J: jump_photon_gain(wave, state); jump_spin_loss_upper_j(wave, state); break;
+
+        case JUMP_SPIN_GAIN_PHOTON_LOSS_SAME_J:  jump_photon_loss(wave, state); jump_spin_gain_same_j(wave, state);  break;
+        case JUMP_SPIN_GAIN_PHOTON_LOSS_LOWER_J: jump_photon_loss(wave, state); jump_spin_gain_lower_j(wave, state); break;
+        case JUMP_SPIN_GAIN_PHOTON_LOSS_UPPER_J: jump_photon_loss(wave, state); jump_spin_gain_upper_j(wave, state); break;
+
+        case JUMP_PHOTON_LOSS: jump_photon_loss(wave, state); break;
+        case EFFECTIVE_HAMILTONIAN: evolve_under_H_eff(wave, state); break;
+    }
+
+    assert(state->excitations >= 0);
+
+    state->rowa = state->row1;
+    state->rowb = state->row2;
+
+    // if jump occured to different J sector
+    if (state->row1 != row1_copy) {
+        state->e_factor = precompute_e_factor(state->row1, state->row2);
+        state->f_factor = precompute_f_factor(state->row1, state->row2);
+        state->g_factor = precompute_g_factor(state->row1, state->row2);
+    }
 }
 
 
@@ -372,7 +486,7 @@ double initial_j_sector;
 uint64_t prefix;
 complex double (*output_matrix)[ExpectationOps][OutputCount];
 
-struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, double start_time, double end_time, bool output) {
+struct TrajectoryState simulate_trajectory(struct TrajectoryState *auxiliary, double start_time, double end_time, bool output) {
 	static thread_local struct WaveVectorAllocation wave_alloc;
 
 	int64 row1 = (int)(NumberOfEmitters/2.0f + initial_j_sector);
@@ -390,10 +504,32 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, doub
 		.wave = &wave_alloc.wave,
 
 		// .excitations set below
-		.molmer_factor = 1,
 	};
 
-	if (initial) memcpy(&state, initial, sizeof state);
+	double ttc_scale = 0;
+
+	if (auxiliary) {
+	    memcpy(&state, auxiliary, sizeof state);
+	    state.wave = &wave_alloc.wave;
+
+		assert(auxiliary->wave != state.wave);
+
+        for (int n = 0; n <= NumberOfEmitters; ++n) {
+             assert((*state.wave)[n] == (*auxiliary->wave)[n]);
+        }
+
+		for (int64 n = auxiliary->rowb; n <= auxiliary->rowa; ++n) {
+		    int64 a = auxiliary->excitations - (NumberOfEmitters - n);
+		    if (a < 0) continue;
+		    (*auxiliary->wave)[n] *= sqrt(a);
+		}
+
+        assert(auxiliary->excitations >= 1);
+		auxiliary->excitations -= 1;
+
+		ttc_scale = normalize_state(*state.wave, &state, auxiliary);
+	}
+
 	else {
 		memset(*state.wave, 0, sizeof *state.wave);
 
@@ -405,25 +541,38 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, doub
 
 	complex double *wave = *state.wave;
 
-	double e_factor = precompute_e_factor(state.row1, state.row2);
-	double f_factor = precompute_f_factor(state.row1, state.row2);
-	double g_factor = precompute_g_factor(state.row1, state.row2);
+	state.e_factor = precompute_e_factor(state.row1, state.row2);
+	state.f_factor = precompute_f_factor(state.row1, state.row2);
+	state.g_factor = precompute_g_factor(state.row1, state.row2);
 
 	int64 step = 0;
-	double next_write = state.time; 
+	double next_write = state.time;
 
-	while (state.time <= config.EndTime) {
+	while (state.time <= end_time) {
 		if (output && state.time == next_write) {
 			complex double expectation[ExpectationOps] = {0};
 
-			for (int64 n = state.rowb; n <= state.rowa; ++n) {
-				int64 a = state.excitations - (NumberOfEmitters - n);
-				if (a < 0) continue;
-				compute_expectation_values(wave, &state, expectation, n, a);
+            if (auxiliary) {
+                for (int64 n = state.rowb; n <= state.rowa; ++n) {
+                    int64 a = state.excitations - (NumberOfEmitters - n);
+                    if (a < 1) continue;
+                    assert(auxiliary->excitations == state.excitations - 1);
+
+                    expectation[0] += conj(wave[n]) * (*auxiliary->wave)[n] * sqrt(a);
+                }
+
+                expectation[0] *= ttc_scale;
+            }
+
+            else {
+                for (int64 n = state.rowb; n <= state.rowa; ++n) {
+                    int64 a = state.excitations - (NumberOfEmitters - n);
+                    if (a < 0) continue;
+                    compute_expectation_values(wave, &state, expectation, n, a);
+                }
 			}
 
 			for (int64 op = 0; op < ExpectationOps; ++op) {
-				expectation[op] *= state.molmer_factor;
 				output_matrix[simulation_index - 1][op][step] = expectation[op];
 			}
 
@@ -432,62 +581,14 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, doub
  		}
 
 		double jump_table[JUMP_COUNT] = {0};
+		double jump_table2[JUMP_COUNT] = {0};
 
-		for (int64 n = state.rowb; n <= state.rowa; ++n) {
-			int64 a = state.excitations - (NumberOfEmitters - n);
-			if (a < 0) continue;
+		calculate_jump_probabilities(wave, &state, jump_table);
 
-			double norm = cnorm(wave[n]);
-
-			int64 jpm = state.row1 - n; // J+M
-			int64 jmm = n - state.row2; // J-M
-			double m = 0.5f * (NumberOfEmitters - 2*n);
-
-			jump_table[JUMP_SPIN_DEPHASING_SAME_J]  += norm * m * m;
-			jump_table[JUMP_SPIN_DEPHASING_LOWER_J] += norm * jmm*jpm;
-			jump_table[JUMP_SPIN_DEPHASING_UPPER_J] += norm * (jmm + 1)*(jpm + 1);
-
-			jump_table[JUMP_SPIN_LOSS_SAME_J]  += norm * (jmm + 1)*(jpm);
-			jump_table[JUMP_SPIN_LOSS_LOWER_J] += norm * (jpm - 1)*(jpm);
-			jump_table[JUMP_SPIN_LOSS_UPPER_J] += norm * (jmm + 1)*(jmm + 2);
-
-			jump_table[JUMP_SPIN_GAIN_SAME_J]  += norm * (jpm + 1)*(jmm);
-			jump_table[JUMP_SPIN_GAIN_LOWER_J] += norm * (jmm - 1)*(jmm);
-			jump_table[JUMP_SPIN_GAIN_UPPER_J] += norm * (jpm + 1)*(jpm + 2);
-
-			if (a + 1 < CavityTruncation) {
-				jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_SAME_J]  += norm * (jmm + 1)*(jpm) * (a + 1);
-				jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_LOWER_J] += norm * (jpm - 1)*(jpm) * (a + 1);
-				jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_UPPER_J] += norm * (jmm + 1)*(jmm + 2) * (a + 1);
-			}
-
-			jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_SAME_J]  += norm * (jpm + 1)*(jmm) * a;
-			jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_LOWER_J] += norm * (jmm - 1)*(jmm) * a;
-			jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_UPPER_J] += norm * (jpm + 1)*(jpm + 2) * a;
-
-			jump_table[JUMP_PHOTON_LOSS] += norm * a;
-		}
-
-		// scale jump probabilities by loss rates
-		jump_table[JUMP_COLLECTIVE_SPIN_DEPHASING] = jump_table[JUMP_SPIN_DEPHASING_SAME_J] * config.CollectiveDephasingRate;
-		jump_table[JUMP_COLLECTIVE_SPIN_LOSS] = jump_table[JUMP_SPIN_LOSS_SAME_J] * config.CollectiveEmissionRate;
-		jump_table[JUMP_COLLECTIVE_SPIN_GAIN] = jump_table[JUMP_SPIN_GAIN_SAME_J] * config.CollectivePumpingRate;
-		jump_table[JUMP_SPIN_DEPHASING_SAME_J]  *= 4*config.DephasingRate * e_factor;
-		jump_table[JUMP_SPIN_DEPHASING_LOWER_J] *= 4*config.DephasingRate * f_factor;
-		jump_table[JUMP_SPIN_DEPHASING_UPPER_J] *= 4*config.DephasingRate * g_factor;
-		jump_table[JUMP_SPIN_LOSS_SAME_J]  *= config.EmissionRate * e_factor;
-		jump_table[JUMP_SPIN_LOSS_LOWER_J] *= config.EmissionRate * f_factor;
-		jump_table[JUMP_SPIN_LOSS_UPPER_J] *= config.EmissionRate * g_factor;
-		jump_table[JUMP_SPIN_GAIN_SAME_J]  *= config.PumpingRate * e_factor;
-		jump_table[JUMP_SPIN_GAIN_LOWER_J] *= config.PumpingRate * f_factor;
-		jump_table[JUMP_SPIN_GAIN_UPPER_J] *= config.PumpingRate * g_factor;
-		jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_SAME_J]  *= config.CavityEmissionRate * e_factor;
-		jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_LOWER_J] *= config.CavityEmissionRate * f_factor;
-		jump_table[JUMP_SPIN_LOSS_PHOTON_GAIN_UPPER_J] *= config.CavityEmissionRate * g_factor;
- 		jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_SAME_J]  *= config.CavityAbsorptionRate * e_factor;
- 		jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_LOWER_J] *= config.CavityAbsorptionRate * f_factor;
- 		jump_table[JUMP_SPIN_GAIN_PHOTON_LOSS_UPPER_J] *= config.CavityAbsorptionRate * g_factor;
-		jump_table[JUMP_PHOTON_LOSS] *= config.PhotonLossRate;
+		if (auxiliary) {
+		    calculate_jump_probabilities(*auxiliary->wave, auxiliary, jump_table2);
+            for (int64 i = 0; i < JUMP_COUNT; ++i) jump_table[i] += jump_table2[i];
+        }
 
 		double max_factor = 1.0f; // min of 1 to guarantee max dt of tolerance
 		for (int64 i = 0; i < JUMP_COUNT; ++i) max_factor = fmax(max_factor, jump_table[i]);
@@ -503,77 +604,14 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, doub
 		state.time += state.time_step;
 
 		int64 choice = select_random_jump(jump_table);
-		int64 row1_copy = state.row1;
+        monte_carlo_step(&state, choice);
+        if (auxiliary) monte_carlo_step(auxiliary, choice);
+        normalize_state(wave, &state, auxiliary);
 
-		switch (choice) {
-			case JUMP_COLLECTIVE_SPIN_DEPHASING: jump_spin_dephasing_same_j(wave, &state); break;
-			case JUMP_COLLECTIVE_SPIN_LOSS: jump_spin_loss_same_j(wave, &state); break;
-			case JUMP_COLLECTIVE_SPIN_GAIN: jump_spin_gain_same_j(wave, &state); break;
-
-			case JUMP_SPIN_DEPHASING_SAME_J:  jump_spin_dephasing_same_j(wave, &state);  break;
-			case JUMP_SPIN_DEPHASING_LOWER_J: jump_spin_dephasing_lower_j(wave, &state); break;
-			case JUMP_SPIN_DEPHASING_UPPER_J: jump_spin_dephasing_upper_j(wave, &state); break;
-
-			case JUMP_SPIN_LOSS_SAME_J:  jump_spin_loss_same_j(wave, &state);  break;
-			case JUMP_SPIN_LOSS_LOWER_J: jump_spin_loss_lower_j(wave, &state); break;
-			case JUMP_SPIN_LOSS_UPPER_J: jump_spin_loss_upper_j(wave, &state); break;
-
-			case JUMP_SPIN_GAIN_SAME_J:  jump_spin_gain_same_j(wave, &state);  break;
-			case JUMP_SPIN_GAIN_LOWER_J: jump_spin_gain_lower_j(wave, &state); break;
-			case JUMP_SPIN_GAIN_UPPER_J: jump_spin_gain_upper_j(wave, &state); break;
-
-			case JUMP_SPIN_LOSS_PHOTON_GAIN_SAME_J:  jump_photon_gain(wave, &state); jump_spin_loss_same_j(wave, &state);  break;
-			case JUMP_SPIN_LOSS_PHOTON_GAIN_LOWER_J: jump_photon_gain(wave, &state); jump_spin_loss_lower_j(wave, &state); break;
-			case JUMP_SPIN_LOSS_PHOTON_GAIN_UPPER_J: jump_photon_gain(wave, &state); jump_spin_loss_upper_j(wave, &state); break;
-
-			case JUMP_SPIN_GAIN_PHOTON_LOSS_SAME_J:  jump_photon_loss(wave, &state); jump_spin_gain_same_j(wave, &state);  break;
-			case JUMP_SPIN_GAIN_PHOTON_LOSS_LOWER_J: jump_photon_loss(wave, &state); jump_spin_gain_lower_j(wave, &state); break;
-			case JUMP_SPIN_GAIN_PHOTON_LOSS_UPPER_J: jump_photon_loss(wave, &state); jump_spin_gain_upper_j(wave, &state); break;
-
-			case JUMP_PHOTON_LOSS: jump_photon_loss(wave, &state); break;
-			case EFFECTIVE_HAMILTONIAN: evolve_under_H_eff(wave, &state); break;
-		}
-
-		assert(state.excitations >= 0);
-
-		// if jump occured to different J sector
-		if (state.row1 != row1_copy) {
-			e_factor = precompute_e_factor(state.row1, state.row2);
-			f_factor = precompute_f_factor(state.row1, state.row2);
-			g_factor = precompute_g_factor(state.row1, state.row2);
-		}
-
-		// expand valid region
-		state.rowb -= config.RungeKuttaPoly * SpinWidth;
-		state.rowa += config.RungeKuttaPoly * SpinWidth;
-
-		// prevent exceeding bounds of Hilbert space
-		if (state.rowb < state.row2)        state.rowb = state.row2;
-		if (state.rowa > state.row1)        state.rowa = state.row1;
-
-		// normalize the wavefunction
-		normalize_state(wave, &state);
-
-		// then shrink to fit
-		for (;; ++state.rowb) {
-			double norm = cnorm(wave[state.rowb]);
-			if (norm >= config.ShrinkTolerance) break;
-			wave[state.rowb] = 0;
-		}
-
-		for (;; --state.rowa) {
-			double norm = cnorm(wave[state.rowa]);
-			if (norm >= config.ShrinkTolerance) break;
-			wave[state.rowa] = 0;
-		}
-
-		// small-expand valid region
-		state.rowb -= SpinWidth;
-		state.rowa += SpinWidth;
-
-		// prevent exceeding bounds of Hilbert space
-		if (state.rowb < state.row2)        state.rowb = state.row2;
-		if (state.rowa > state.row1)        state.rowa = state.row1;
+        if (auxiliary) {
+            assert(state.row1 == auxiliary->row1);
+            assert(state.row2 == auxiliary->row2);
+        }
 	}
 
 	return state;
@@ -586,35 +624,14 @@ double correlation_time;
 
 void two_time_correlation() {
 	static thread_local struct WaveVectorAllocation second_wave;
-	struct TrajectoryState psi = simulate_trajectory(nullptr, 0, correlation_time, false);
+	struct TrajectoryState aux = simulate_trajectory(nullptr, 0, correlation_time, false);
 
-	// split wave function into 4 states, and then evolve trajectories from there...
-	// in this case hat(a) = hat(b) + alpha
+	memcpy(second_wave.wave, aux.wave, sizeof(WaveVector));
+	aux.wave = &second_wave.wave;
+	aux.time = config.StartTime;
+    aux.time_step = 0;
 
-	complex double factor = 1;
-
-	for (int64 split = 0; split < 4; ++split) { // cycle through 1, i, -1, -i
-		struct TrajectoryState phi = psi;
-		phi.wave = &second_wave.wave;
-
-		memcpy(phi.wave, psi.wave, sizeof(WaveVector));
-
-		for (int64 n = phi.rowb; n <= phi.rowa; ++n) {
-			int64 a = phi.excitations - (NumberOfEmitters - n);
-			if (a < 0) continue;
-
-			collapse_operator(*phi.wave, *psi.wave, &phi, factor, n, a);
-		}
-
-		double norm = normalize_state(*phi.wave, &phi);
-		phi.molmer_factor = conjf(factor) * norm;
-		phi.time = config.StartTime;
-
-		simulation_index += 1;
-		simulate_trajectory(&phi, config.StartTime, config.EndTime, true);
-
-		factor *= I;
-	}
+    simulate_trajectory(&aux, config.StartTime, config.EndTime, true);
 }
 
 
@@ -639,7 +656,7 @@ void *thread_worker() {
 		double begin = get_time_from_os();
 
 		if (correlation) {
-			simulation_index = 4 * (next - 1);
+			simulation_index = next;
 			two_time_correlation();
 		} else {
 			simulation_index = next;
