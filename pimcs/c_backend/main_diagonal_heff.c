@@ -132,7 +132,7 @@ uint64_t prefix;
 complex double (*output_matrix)[ExpectationOps][OutputCount];
 
 struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, double start_time, double end_time, bool output) {
-	int64 row1 = (int)(NumberOfEmitters/2.0f + initial_j_sector);
+	int64 row1 = (int)(NumberOfEmitters/2.0 + config.InitialJ);
 	int64 row2 = NumberOfEmitters - row1;
 
 	struct TrajectoryState state = {
@@ -150,12 +150,7 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, doub
 
 	if (initial) memcpy(&state, initial, sizeof state);
 	else {
-		for (int64 n = state.row2; n <= state.row1; ++n) {
-			if (cnorm(initial_state[n]) > 0) {
-				state.n = n;
-				break;
-			}
-		}
+		state.n = NumberOfEmitters/2.0 - config.InitialM;
 	}
 
 	double e_factor = precompute_e_factor(state.row1, state.row2);
@@ -170,7 +165,7 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, doub
 
 		int64 jpm = state.row1 - state.n; // J+M
 		int64 jmm = state.n - state.row2; // J-M
-		double m = 0.5f * (NumberOfEmitters - 2*state.n);
+		double m = 0.5 * (NumberOfEmitters - 2*state.n);
 
 		jump_table[JUMP_SPIN_DEPHASING_SAME_J]  = m * m;
 		jump_table[JUMP_SPIN_DEPHASING_LOWER_J] = jmm*jpm;
@@ -238,6 +233,10 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *initial, doub
 
 			step += 1;
 			next_write = start_time + (end_time - start_time) * step / (OutputCount - 1);
+			if (step == OutputCount) {
+			    assert(state.time > config.EndTime);
+			    break;
+			}
  		}
 
 		int64 choice = select_random_jump(jump_table);

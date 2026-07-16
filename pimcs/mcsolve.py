@@ -23,14 +23,14 @@ class MCSolver:
         self.output = np.zeros(output_shape, dtype=np.complex128)
 
     def __call__(self):
-        coeffs = np.ascontiguousarray(self.psi0.coeffs, dtype=np.complex128)
+        coeffs = np.ascontiguousarray(self.psi0.coeffs, dtype=np.complex128) if self.psi0 is not None else None
         tfuncs = np.ascontiguousarray(self.tfuncs, dtype=np.complex128)
         lib = ctypes.CDLL(self.libpath)
 
         lib.run_trajectories(
-            ctypes.c_double(self.psi0.j),
+            ctypes.c_double(self.psi0.j if self.psi0 is not None else 0),
             ctypes.c_uint64(self.id),
-            coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
+            coeffs.ctypes.data_as(ctypes.POINTER(ctypes.c_double)) if coeffs is not None else None,
             tfuncs.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
             ctypes.c_double(self.correlation_time),
             self.output.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
@@ -43,14 +43,20 @@ def mcsolve(system: Dicke, psi0: DickeState, tlist: list[float], e_ops=[], ntraj
             enable_displacement: bool = False,
             use_conservation: bool = False,
             diagonal_heff: bool = False) -> MCSolveResult:
-    if psi0.j > system.N / 2:
-        raise ValueError(f"J spin length is larger than N/2, where N = {system.N}")
+    if diagonal_heff:
+        if psi0 is not None:
+            raise ValueError(
+                "Initial state for diagonal heff is passed using system.diagonal_heff_j and system.diagonal_heff_m!")
 
-    if not math.isclose(psi0.norm(), 1):
-        raise ValueError(f"Initial wavefunction is not normalized, got norm of {psi0.norm()}")
+    else:
+        if psi0.j > system.N / 2:
+            raise ValueError(f"J spin length is larger than N/2, where N = {system.N}")
 
-    if use_conservation and np.sum(psi0.coeffs != 0) != 1:
-        raise ValueError("State is not an eigenstate of excitations!")
+        if not math.isclose(psi0.norm(), 1):
+            raise ValueError(f"Initial wavefunction is not normalized, got norm of {psi0.norm()}")
+
+        if use_conservation and np.sum(psi0.coeffs != 0) != 1:
+            raise ValueError("State is not an eigenstate of excitations!")
 
     tlist = np.array(tlist)
     assert len(tlist) > 1

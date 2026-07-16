@@ -15,5 +15,8 @@ struct Config {
 	int RungeKuttaPoly;
 	double JumpTolerance;
 	double ShrinkTolerance;
+
+	double InitialJ;
+	double InitialM;
 };
 
