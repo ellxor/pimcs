@@ -345,7 +345,6 @@ void jump_photon_gain(WaveVector wave, struct TrajectoryState *state) {
 	}
 
 	state->excitations += 1;
-
 }
 
 
@@ -361,7 +360,7 @@ double normalize_state(WaveVector wave, struct TrajectoryState *state, struct Tr
 	}
 
 	assert(norm && "Invalid state: has norm of zero");
-	double scale = 1.0f / sqrt(norm);
+	double scale = 1.0 / sqrt(norm);
 
 	for (int64 n = state->rowb; n <= state->rowa; ++n) {
 		wave[n] *= scale;
@@ -385,7 +384,7 @@ void calculate_jump_probabilities(WaveVector wave, struct TrajectoryState *state
 
 		int64 jpm = state->row1 - n; // J+M
 		int64 jmm = n - state->row2; // J-M
-		double m = 0.5f * (NumberOfEmitters - 2*n);
+		double m = 0.5 * (NumberOfEmitters - 2*n);
 
 		jump_table[JUMP_SPIN_DEPHASING_SAME_J]  += norm * m * m;
 		jump_table[JUMP_SPIN_DEPHASING_LOWER_J] += norm * jmm*jpm;
@@ -433,7 +432,7 @@ void calculate_jump_probabilities(WaveVector wave, struct TrajectoryState *state
 }
 
 
-void monte_carlo_step(struct TrajectoryState *state, int64 choice) {
+bool monte_carlo_step(struct TrajectoryState *state, int64 choice) {
     complex double *wave = *state->wave;
     int64 row1_copy = state->row1;
 
@@ -466,7 +465,10 @@ void monte_carlo_step(struct TrajectoryState *state, int64 choice) {
         case EFFECTIVE_HAMILTONIAN: evolve_under_H_eff(wave, state); break;
     }
 
-    assert(state->excitations >= 0);
+//     assert(state->excitations >= 0);
+    if (state->excitations < 0) { // two time corraltion only! state has been deleted: correlator is zero
+        return true;
+    }
 
     state->rowa = state->row1;
     state->rowb = state->row2;
@@ -477,6 +479,8 @@ void monte_carlo_step(struct TrajectoryState *state, int64 choice) {
         state->f_factor = precompute_f_factor(state->row1, state->row2);
         state->g_factor = precompute_g_factor(state->row1, state->row2);
     }
+
+    return false;
 }
 
 
@@ -524,8 +528,8 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *auxiliary, do
 		    (*auxiliary->wave)[n] *= sqrt(a);
 		}
 
-        assert(auxiliary->excitations >= 1);
-		auxiliary->excitations -= 1;
+        if (auxiliary->excitations == 0) return state; // state gets deleted early!
+   		auxiliary->excitations -= 1;
 
 		ttc_scale = normalize_state(*state.wave, &state, auxiliary);
 	}
@@ -557,7 +561,6 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *auxiliary, do
                     int64 a = state.excitations - (NumberOfEmitters - n);
                     if (a < 1) continue;
                     assert(auxiliary->excitations == state.excitations - 1);
-
                     expectation[0] += conj(wave[n]) * (*auxiliary->wave)[n] * sqrt(a);
                 }
 
@@ -571,6 +574,8 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *auxiliary, do
                     compute_expectation_values(wave, &state, expectation, n, a);
                 }
 			}
+
+            assert(step < OutputCount);
 
 			for (int64 op = 0; op < ExpectationOps; ++op) {
 				output_matrix[simulation_index - 1][op][step] = expectation[op];
@@ -590,7 +595,7 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *auxiliary, do
             for (int64 i = 0; i < JUMP_COUNT; ++i) jump_table[i] += jump_table2[i];
         }
 
-		double max_factor = 1.0f; // min of 1 to guarantee max dt of tolerance
+		double max_factor = 1.0; // min of 1 to guarantee max dt of tolerance
 		for (int64 i = 0; i < JUMP_COUNT; ++i) max_factor = fmax(max_factor, jump_table[i]);
 
 		state.time_step = config.JumpTolerance / max_factor;
@@ -604,9 +609,13 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *auxiliary, do
 		state.time += state.time_step;
 
 		int64 choice = select_random_jump(jump_table);
-        monte_carlo_step(&state, choice);
-        if (auxiliary) monte_carlo_step(auxiliary, choice);
+        bool state_deleted = monte_carlo_step(&state, choice);
+        if (auxiliary) state_deleted |= monte_carlo_step(auxiliary, choice);
+        else assert(!state_deleted && "single time correlation should never delete the state");
+
         normalize_state(wave, &state, auxiliary);
+
+        if (state_deleted) break; // all further correlations are zero
 
         if (auxiliary) {
             assert(state.row1 == auxiliary->row1);
@@ -665,8 +674,8 @@ void *thread_worker() {
 
 		double end = get_time_from_os();
 
-		int64 millis = (int)(1000.0f * (end - begin));
-		double total_seconds = (atomic_fetch_add(&total_millis, millis) + millis) / 1000.0f;
+		int64 millis = (int)(1000.0 * (end - begin));
+		double total_seconds = (atomic_fetch_add(&total_millis, millis) + millis) / 1000.0;
 
 		int64 complete = atomic_fetch_add(&threads_complete, 1) + 1;
 		double average_seconds = total_seconds / complete;
