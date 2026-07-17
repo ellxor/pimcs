@@ -112,9 +112,7 @@ def generate_expectation_values(expect) -> str:
 
         for coeff, spin, boson, tfactor in collected:
             assert len(tfactor) == 1, "observables are not currently time-dependent"
-
             spin_index, boson_index, factor = ops_to_factor(spin + boson)
-            print(spin_index, boson_index, factor)
 
             if boson_index == 0:  # TODO: check for suitable warnings if expectation is always zero for an operator.
                 string_builder += f"\texpect[{i}] += ({coeff.real} + I*{coeff.imag}) * conj(wave[n + {spin_index}]) * wave[n] * {factor};\n"
