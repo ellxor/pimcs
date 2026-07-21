@@ -29,7 +29,7 @@ Check out the [example notebook](example_notebook.ipynb) as a quick reference.
 - [x] Replace trajectory files with passing data directly in memory to Python.
 - [x] Add code for models that have extra U(1) symmetry (i.e. Tavis-Cummings, a†a + Jz is conserved)
 - [x] Add code for models with a diagonal H_eff where the simulation is purely jumps
-- [ ] Use total jump probability for scaling rather than individual jumps
+- [x] Use total jump probability for scaling rather than individual jumps
 - [ ] Use processes rather than threads to explore performance gains
 - [ ] Add example for two-time correlations to notebook
 - [ ] Add Cython (or Mojo) backend and code generation

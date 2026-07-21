@@ -595,10 +595,11 @@ struct TrajectoryState simulate_trajectory(struct TrajectoryState *auxiliary, do
             for (int64 i = 0; i < JUMP_COUNT; ++i) jump_table[i] += jump_table2[i];
         }
 
-		double max_factor = 1.0; // min of 1 to guarantee max dt of tolerance
-		for (int64 i = 0; i < JUMP_COUNT; ++i) max_factor = fmax(max_factor, jump_table[i]);
+		double decay_factor = 0; // min of 1 to guarantee max dt of tolerance
+		for (int64 i = 0; i < JUMP_COUNT; ++i) decay_factor += jump_table[i];
+		if (decay_factor < 1) decay_factor = 1;
 
-		state.time_step = config.JumpTolerance / max_factor;
+		state.time_step = config.JumpTolerance / decay_factor;
 
 		if (output && state.time + state.time_step >= next_write) { // do not remove!
 			state.time_step = next_write - state.time;
