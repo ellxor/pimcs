@@ -1,13 +1,12 @@
 # Permutation Invariant Monte Carlo Solver (pimcs)
 
+> [!WARNING]
+> The library is still in development - some parts may not work, and is not ready for research purposes!
+
 A small library to do quantum trajectories for permutational invariant spin-1/2 ensembles,
 along with an associated bosonic mode, e.g. Dicke model.
 
 The interface is designed to be a mesh of QuTiP `piqs` and `mcsolve` submodules.
-
-> [!WARNING]
-> The library is still in beta-testing phase and currently produces debug files. Displacement
-> operator transform is currently being added.
 
 **Requirements**
 - POSIX compliant system (macOS or Linux)
