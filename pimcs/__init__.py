@@ -1,5 +1,3 @@
-# interface with library: export qutip.piqs- and qutip.mcsolve-like API
-
-from .operators import jspin, destroy
-from .dicke import Dicke, dicke, ground, excited, rotated_qubits
-from .mcsolve import mcsolve
+from .dicke import Dicke, coherent_state, excited, ground, rotated_qubits
+from .mcsolver import mcsolve
+from .qoperator import destroy, jspin

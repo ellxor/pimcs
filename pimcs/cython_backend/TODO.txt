@@ -1,3 +1,0 @@
-Add code here to implement cython backend:
- - this will likely be required by QuTiP
- - this will be added when the code has been more thoroughly tested

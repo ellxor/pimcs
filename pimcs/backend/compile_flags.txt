@@ -1,0 +1,30 @@
+-std=gnu11
+-Werror
+-Wall
+-Wextra
+
+// example config to silence clangd warnings
+-DSB_ANGLE=0.0
+-DJUMP_TOLERANCE=0.01
+-DHAMILTONIAN_TOLERANCE=1e-10
+-DTRAJECTORY_COUNT=6
+-DTHREAD_COUNT=6
+-DSPIN_WIDTH=1
+-DHAMILTONIAN_CODE=dst->coeffs[index + 0 * SPIN_SHIFT + 0 * PHOTON_SHIFT] += coeff * (0.35 + 0.0 * I) * (m + 0); dst->coeffs[index + 1 * SPIN_SHIFT + -1 * PHOTON_SHIFT] += coeff * (0.01788854381999832 + 0.0 * I) * sqrt(a + 0) * sqrt((jpm + 1 - 0) * (jmm + 0)); dst->coeffs[index + -1 * SPIN_SHIFT + 1 * PHOTON_SHIFT] += coeff * (0.01788854381999832 + 0.0 * I) * sqrt(a + 1 + 0) * sqrt((jmm + 1 + 0) * (jpm - 0));
+-DOBSERVABLES_CODE=expectation[thread_index][write_index][0] += conj(wave->coeffs[index + 0 * SPIN_SHIFT + 0 * PHOTON_SHIFT]) * wave->coeffs[index] * (1.0 + 0.0 * I) * safe_sqrt(a + 0) * safe_sqrt(a + 1 + -1);
+-DOBSERVABLES_COUNT=2
+-DN=500
+-DPHOTON_TRUNCATION=0
+-DPHOTON_LOSS_RATE=0.01
+-DLOCAL_DEPHASING_RATE=0.03
+-DLOCAL_EMISSION_RATE=0.001
+-DLOCAL_PUMPING_RATE=0.0
+-DCOLLECTIVE_DEPHASING_RATE=0.0
+-DCOLLECTIVE_EMISSION_RATE=0.0
+-DCOLLECTIVE_PUMPING_RATE=0.0
+-DCAVITY_ABSORPTION_RATE=0.0
+-DCAVITY_EMISSION_RATE=0.0
+-DSIMULATION_TIME=200.0
+-DOUTPUT_COUNT=1000
+-DOUTPUT_FILE="/tmp/tmp88khmg8d"
+-DDIAGONAL_STATE=
