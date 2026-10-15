@@ -227,6 +227,10 @@ def mcsolve(
 		print(" > use ground(), excited(), coherent_state(), or rotated_qubits(angle) to create one")
 		raise ValueError
 
+	if enable_displacement and (system.cavity_absorption_rate != 0 or system.cavity_emission_rate != 0):
+		print("Error: cavity jump operators cannot currently be used with displacement transform")
+		raise ValueError
+
 	if number_of_cpus is None:
 		print("Warning: CPU count not specified, defaulting to only a single core!")
 		print(" > to remove this warning, explicitly pass number_of_cpus = 1 to mcsolve()")
