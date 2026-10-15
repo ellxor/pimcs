@@ -1,39 +1,17 @@
 # Permutation Invariant Monte Carlo Solver (pimcs)
 
-> [!WARNING]
-> The library is still in development - some parts may not work, and is not ready for research purposes!
-
 A small library to do quantum trajectories for permutational invariant spin-1/2 ensembles,
 along with an associated bosonic mode, e.g. Dicke model.
 
 The interface is designed to be a mesh of QuTiP `piqs` and `mcsolve` submodules.
 
 **Requirements**
-- POSIX compliant system (macOS or Linux)
+- POSIX compliant system (macOS and Linux tested)
 - C11 compliant C compiler (gcc 5+ or clang 4+)
 - Python `numpy` and `scipy` libraries
 
 Check out the [example notebook](example_notebook.ipynb) as a quick reference.
 
 **TODO:**
-- [x] Relax C backend requirements to C11 (atomics) for better compatibility
-- [x] Add unified interface for single `import pimcs`
-- [x] Allow C code to be stopped from Python / Jupyter notebook
-- [x] Add support for initial states not in maximal J sector
-- [x] Support arbitrary Hamiltonians
-- [x] Add support for time-dependent Hamiltonians
-- [x] Auto-detection of Hermitian observables: give real arrays instead of always complex valued
-- [x] Add displaced trajectory code (for any arbitrary H)
-- [x] Add support for two-time correlations to Python frontend
-- [x] Replace trajectory files with passing data directly in memory to Python.
-- [x] Add code for models that have extra U(1) symmetry (i.e. Tavis-Cummings, a†a + Jz is conserved)
-- [x] Add code for models with a diagonal H_eff where the simulation is purely jumps
-- [x] Use total jump probability for scaling rather than individual jumps
-- [ ] Use processes rather than threads to explore performance gains
-- [ ] Add example for two-time correlations to notebook
-- [ ] Add Cython (or Mojo) backend and code generation
-- [ ] Promote operators to be Qobj operators for better QuTiP integration (using opaque data field)
-- [ ] Add support for SU(3) PI trajectories
-- [ ] Add support for multiple spin spaces
-- [ ] Add support for multiple boson modes
-- [ ] Explore idea for displaced Holstein-Primakoff
+- Upload code for two-time correlations
+- Add proper documentation/wiki page
