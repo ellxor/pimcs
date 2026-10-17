@@ -4,8 +4,6 @@ from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
-from scipy.special import gammaln
-
 from .qoperator import QLeafExpr, QExpr
 
 
