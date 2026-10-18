@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 import numpy as np
 import subprocess
@@ -156,6 +156,15 @@ def generate_observables_code(config: Config) -> str:
 	return code
 
 
+def parse_extra_arguments(config: Config, args: dict[str, Any]):
+	for opt, value in args.items():
+		print(f"Parsing: {opt} => {value}")
+		match opt:
+			case "hamiltonian_tolerance": config.hamiltonian_tolerance = float(value)
+			case "jump_tolerance":        config.jump_tolerance = float(value)
+			case _:                       raise ValueError(f"unknown option: {opt}")
+
+
 def build_config(config: Config) -> list[str]:
 	options: dict[str,str] = {
 		"SB_ANGLE":                  config.initial_state.angle,
@@ -215,6 +224,7 @@ def mcsolve(
 		expectation_operators: Iterable[QExpr],
 		number_of_trajectories: int,
 		number_of_cpus: int = None,
+		extra_arguments: dict[str, Any] = None,
 		enable_displacement: bool = False):
 
 	if not isinstance(system, Dicke):
@@ -284,6 +294,9 @@ def mcsolve(
 	if enable_displacement:
 		config.system.hamiltonian = system.hamiltonian.displace()
 		config.expectation_operators = [op.displace() for op in expectation_operators]
+
+	if extra_arguments is not None:
+		parse_extra_arguments(config, extra_arguments)
 
 	config.output_file = tmp.NamedTemporaryFile()
 	config.hamiltonian_code = generate_hamiltonian_code(config)
