@@ -16,8 +16,6 @@ one can quickly obtain on a laptop.
 - C11 compliant C compiler (gcc 5+ or clang 4+)
 - Python `numpy` library
 
-Check out the [example notebook](example_notebook.ipynb) as a quick reference.
-
 **TODO:**
 - Upload code for two-time correlations
 - Add proper documentation/wiki page

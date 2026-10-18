@@ -17,9 +17,9 @@ EMBED_FUNCTION_TABLES;
 #ifdef DIAGONAL_STATE
 #define PHOTON_BEGIN(wave)     (wave)->excitations - ((N + two_m) / 2)
 #define PHOTON_END(wave)       PHOTON_BEGIN(wave)
-#define PHOTON_SHIFT		   0
+#define PHOTON_SHIFT           0
 #else
-#define PHOTON_BEGIN(...)	   0
+#define PHOTON_BEGIN(...)      0
 #define PHOTON_END(...)        PHOTON_TRUNCATION
 #define PHOTON_SHIFT           1
 #endif
@@ -28,30 +28,30 @@ EMBED_FUNCTION_TABLES;
 #define SPIN_SHIFT             (PHOTON_TRUNCATION + 1)
 
 
-#define JUMP_PHOTON_ANNIHILATION			0
+#define JUMP_PHOTON_ANNIHILATION          0
 // sigma z
-#define JUMP_DEPHASING_SAME_SPIN			1
-#define JUMP_DEPHASING_LOWER_SPIN			2
-#define JUMP_DEPHASING_UPPER_SPIN			3
+#define JUMP_DEPHASING_SAME_SPIN          1
+#define JUMP_DEPHASING_LOWER_SPIN         2
+#define JUMP_DEPHASING_UPPER_SPIN         3
 // sigma -
-#define JUMP_EMISSION_SAME_SPIN				4
-#define JUMP_EMISSION_LOWER_SPIN			5
-#define JUMP_EMISSION_UPPER_SPIN			6
+#define JUMP_EMISSION_SAME_SPIN           4
+#define JUMP_EMISSION_LOWER_SPIN          5
+#define JUMP_EMISSION_UPPER_SPIN          6
 // sigma +
-#define JUMP_PUMPING_SAME_SPIN				7
-#define JUMP_PUMPING_LOWER_SPIN				8
-#define JUMP_PUMPING_UPPER_SPIN				9
+#define JUMP_PUMPING_SAME_SPIN            7
+#define JUMP_PUMPING_LOWER_SPIN           8
+#define JUMP_PUMPING_UPPER_SPIN           9
 // a^dagger sigma -
-#define JUMP_CAVITY_EMISSION_SAME_SPIN		10
-#define JUMP_CAVITY_EMISSION_LOWER_SPIN		11
-#define JUMP_CAVITY_EMISSION_UPPER_SPIN		12
+#define JUMP_CAVITY_EMISSION_SAME_SPIN    10
+#define JUMP_CAVITY_EMISSION_LOWER_SPIN   11
+#define JUMP_CAVITY_EMISSION_UPPER_SPIN   12
 // a sigma +
-#define JUMP_CAVITY_ABSORPTION_SAME_SPIN	13
-#define JUMP_CAVITY_ABSORPTION_LOWER_SPIN	14
-#define JUMP_CAVITY_ABSORPTION_UPPER_SPIN	15
+#define JUMP_CAVITY_ABSORPTION_SAME_SPIN  13
+#define JUMP_CAVITY_ABSORPTION_LOWER_SPIN 14
+#define JUMP_CAVITY_ABSORPTION_UPPER_SPIN 15
 
-#define JUMP_COUNT							16
-#define EFFECTIVE_HAMILTONIAN				JUMP_COUNT // if index runs to end of table, i.e. no jump chosen
+#define JUMP_COUNT                        16
+#define EFFECTIVE_HAMILTONIAN             JUMP_COUNT // if index runs to end of table, i.e. no jump chosen
 
 
 struct WaveVector {
@@ -238,13 +238,13 @@ void displace(struct WaveVector *wave, double complex shift) {
 // ============================================================================================================
 // Collective J  operator factors for changing symmetry sectors
 // ============================================================================================================
-// source: [TODO: add original source]
-//    doi: ...
+// source: Chase and Geremia, Collective processes of an ensemble of spin-1/2 particles, 2008
+//    doi: 10.1103/PhysRevA.78.052101
 //
 // source: Bastin and Martin, Permutationally invariant processes in open multiqudit systems, 2025
 //    doi: 10.1088/1751-8121/addfc1
 //
-// independently verified by Lloyd, Keeling and Ziolkowska (2026)
+// independently verified by Lloyd, Keeling and Ziolkowska,  Permutation-symmetric quantum trajectories, 2026
 //
 // Note: the same_spin and lower_spin factors are undefined at J = 0, however, in this case, M = 0 is
 //       the only allowed state, therefore all factors M, (J+M) and (J-M) are zero, so transitions of
