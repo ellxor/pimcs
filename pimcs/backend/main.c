@@ -355,9 +355,10 @@ void run_simulation(size_t simulation_index, size_t thread_index) {
 
 	double next_write = 0;
 	size_t write_index = 0;
+	double time = 0;
 
-	for (double time = 0; time <= SIMULATION_TIME;) {
-		double jump_table[JUMP_COUNT] = {};
+	while (write_index < OUTPUT_COUNT) {
+		double jump_table[JUMP_COUNT] = {0};
 		wave->annihilation = 0;
 
 		size_t index = begin(wave);
@@ -396,7 +397,7 @@ void run_simulation(size_t simulation_index, size_t thread_index) {
 		// Output expectation values
 		if (time >= next_write) {
 			size_t begin_index = begin(wave);
-			size_t end_index = end(wave) + 1;
+			size_t end_index = end(wave) + SPIN_SHIFT;
 			size_t total_range = sizeof wave->coeffs / sizeof *wave->coeffs;
 
 			// for expectation operators, we make sure that the region outside the valid Hilbert space
@@ -423,7 +424,7 @@ void run_simulation(size_t simulation_index, size_t thread_index) {
 			}
 
 			write_index += 1;
-			next_write = SIMULATION_TIME * (double)write_index / (OUTPUT_COUNT - 1);
+			next_write = SIMULATION_TIME * ((double)write_index / (OUTPUT_COUNT - 1));
 
 			wave->time_slice = write_index; // @todo: cleanup - for now use write index as read index for function tables
 		}
@@ -660,18 +661,23 @@ void run_simulation(size_t simulation_index, size_t thread_index) {
 			}
 		}
 
+		assert(norm > 0);
 		double renormalize = 1.0 / sqrt(norm);
 		double complex annihilation = 0;
 		MAYBE_UNUSED(annihilation);
 
 		index = begin(wave);
+		norm = 0;
 
 		for (int64 two_m = -wave->two_j_sector; two_m <= wave->two_j_sector; two_m += 2) {
 			for (int64 a = PHOTON_BEGIN(wave); a <= PHOTON_END(wave); a += 1, index += 1) {
 				wave->coeffs[index] *= renormalize;
+				norm += cnorm(wave->coeffs[index]);
 				if (a > 0) annihilation += conj(wave->coeffs[index - PHOTON_SHIFT]) * wave->coeffs[index] * sqrt(a);
 			}
 		}
+
+		assert(fabs(norm - 1.0) < 1e-12);
 
 #ifdef DISPLACEMENT
 		if (cnorm(annihilation) > 0.01) displace(wave, annihilation);
