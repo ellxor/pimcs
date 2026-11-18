@@ -257,11 +257,11 @@ def mcsolve(
 		system                    = system,
 		initial_state             = initial_state,
 		expectation_operators     = list(expectation_operators),
-		number_of_trajectories    = number_of_trajectories,
-		number_of_cpus            = number_of_cpus,
+		number_of_trajectories    = int(number_of_trajectories),
+		number_of_cpus            = int(number_of_cpus),
 		output_total              = output_times[-1] - output_times[0],
 		output_count              = len(output_times),
-		displacement_optimisation = enable_displacement,
+		displacement_optimisation = bool(enable_displacement),
 	)
 
 	a = destroy()
@@ -308,7 +308,7 @@ def mcsolve(
 
 	with tmp.NamedTemporaryFile() as executable: # @hack: create a temporary file just to get an available file name,
 		executable.close()                       #        then immediately delete it to then use that name
-		subprocess.run(["cc", *build_flags, *c_flags, str(target), "-o", executable.name])
+		subprocess.run(["cc", str(target), "-o", executable.name, *build_flags, *c_flags])
 		subprocess.run([executable.name])
 
 	data = np.loadtxt(config.output_file.name).T
